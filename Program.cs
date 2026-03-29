@@ -16,8 +16,11 @@ if (!SDL.ClaimWindowForGPUDevice(device.Handle, window))
 
 
 
-var vb = new GpuBuffer<Vertex>(device, 6, SDL.GPUBufferUsageFlags.Vertex);
+var vb = new GpuBuffer<Vertex>(device, 4, SDL.GPUBufferUsageFlags.Vertex);
 var vtb = new GpuTransferBuffer<Vertex>(vb);
+
+var ib = new GpuBuffer<Int16>(device, 6, SDL.GPUBufferUsageFlags.Index);
+var itb = new GpuTransferBuffer<Int16>(ib);
 
 static nint loadShader(GpuDevice device, string path, SDL.GPUShaderStage stage)
 {
@@ -123,15 +126,17 @@ while (loop)
     var commandBuffer = SDL.AcquireGPUCommandBuffer(device.Handle);
 
     var ft = frame / 100f;
+    ft += MathF.Sin(frame / 50f);
     vtb.WriteAndCopy(commandBuffer, [
         new(MathF.Sin(ft + MathF.PI * 2 / 4 * 0), MathF.Cos(ft + MathF.PI * 2 / 4 * 0), 0, 1, 0, 0, 1),
         new(MathF.Sin(ft + MathF.PI * 2 / 4 * 1), MathF.Cos(ft + MathF.PI * 2 / 4 * 1), 0, 1, 1, 0, 1),
         new(MathF.Sin(ft + MathF.PI * 2 / 4 * 2), MathF.Cos(ft + MathF.PI * 2 / 4 * 2), 0, 1, 0, 1, 1),
 
-        new(MathF.Sin(ft + MathF.PI * 2 / 4 * 0), MathF.Cos(ft + MathF.PI * 2 / 4 * 0), 0, 1, 0, 0, 1),
-        new(MathF.Sin(ft + MathF.PI * 2 / 4 * 2), MathF.Cos(ft + MathF.PI * 2 / 4 * 2), 0, 1, 0, 1, 1),
+        // new(MathF.Sin(ft + MathF.PI * 2 / 4 * 0), MathF.Cos(ft + MathF.PI * 2 / 4 * 0), 0, 1, 0, 0, 1),
+        // new(MathF.Sin(ft + MathF.PI * 2 / 4 * 2), MathF.Cos(ft + MathF.PI * 2 / 4 * 2), 0, 1, 0, 1, 1),
         new(MathF.Sin(ft + MathF.PI * 2 / 4 * 3), MathF.Cos(ft + MathF.PI * 2 / 4 * 3), 0, 1, 0, 1, 1),
     ]);
+    itb.WriteAndCopy(commandBuffer, [0, 1, 2, 0, 2, 3]);
 
     SDL.WaitAndAcquireGPUSwapchainTexture(commandBuffer, window, out var swapchainTexture, out var w, out var h);
     if (swapchainTexture == nint.Zero)
@@ -147,18 +152,13 @@ while (loop)
         LoadOp = SDL.GPULoadOp.Clear,
         StoreOp = SDL.GPUStoreOp.Store,
     };
-
-    var renderPass = SDL.BeginGPURenderPass(commandBuffer, StructureToPointer(ref colorTarget), 1, nint.Zero);
+    var renderPass = SDL.BeginGPURenderPass(commandBuffer, StructureToPointer(colorTarget), 1, nint.Zero);
 
     SDL.BindGPUGraphicsPipeline(renderPass, graphicsPipeline);
 
-    var bufferBinding = new SDL.GPUBufferBinding()
-    {
-        Buffer = vb.Handle,
-        Offset = 0,
-    };
-    SDL.BindGPUVertexBuffers(renderPass, 0, SpanToPointer([bufferBinding]), 1);
-    SDL.DrawGPUPrimitives(renderPass, 6, 1, 0, 0);
+    SDL.BindGPUVertexBuffers(renderPass, 0, StructureToPointer(new SDL.GPUBufferBinding() { Buffer = vb.Handle }), 1);
+    SDL.BindGPUIndexBuffer(renderPass, new SDL.GPUBufferBinding() { Buffer = ib.Handle }, SDL.GPUIndexElementSize.IndexElementSize16Bit);
+    SDL.DrawGPUIndexedPrimitives(renderPass, 6, 1, 0, 0, 0);
 
     SDL.EndGPURenderPass(renderPass);
     SDL.SubmitGPUCommandBuffer(commandBuffer);
@@ -170,7 +170,7 @@ SDL.DestroyWindow(window);
 SDL.Quit();
 
 
-static unsafe nint StructureToPointer<T>(ref T structure) where T : unmanaged => (nint) Unsafe.AsPointer(ref structure);
+static unsafe nint StructureToPointer<T>(in T structure) where T : unmanaged => (nint) Unsafe.AsPointer(in structure);
 static unsafe nint SpanToPointer<T>(ReadOnlySpan<T> span) where T : unmanaged => (nint) Unsafe.AsPointer(ref MemoryMarshal.GetReference(span));
 
 readonly struct Vertex
