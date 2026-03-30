@@ -10,7 +10,7 @@ if (!SDL.Init(SDL.InitFlags.Video))
     SDL.LogError(SDL.LogCategory.System, $"SDL could not initialize: {SDL.GetError()}");
     return;
 }
-var window = SDL.CreateWindow("SDL3 Create Window", 800, 600, SDL.WindowFlags.Resizable);
+var window = SDL.CreateWindow("SDL3 Create Window", 2560, 1440, SDL.WindowFlags.Resizable);
 var device = new GpuDevice();
 if (!SDL.ClaimWindowForGPUDevice(device.Handle, window))
     throw new Exception(SDL.GetError());
@@ -97,7 +97,7 @@ var pipelineInfo = new SDL.GPUGraphicsPipelineCreateInfo()
 
     VertexInputState = new()
     {
-        NumVertexBuffers = 1,
+        NumVertexBuffers = 2,
         VertexBufferDescriptions = SpanToPointer([
             new SDL.GPUVertexBufferDescription()
             {
@@ -105,9 +105,15 @@ var pipelineInfo = new SDL.GPUGraphicsPipelineCreateInfo()
                 InputRate = SDL.GPUVertexInputRate.Vertex,
                 Pitch = (uint) Unsafe.SizeOf<Vertex>(),
             },
+            new SDL.GPUVertexBufferDescription()
+            {
+                Slot = 1,
+                InputRate = SDL.GPUVertexInputRate.Instance,
+                Pitch = (uint) Unsafe.SizeOf<Matrix4x4>(),
+            },
         ]),
 
-        NumVertexAttributes = 2,
+        NumVertexAttributes = 2 + 4,
         VertexAttributes = SpanToPointer([
             new SDL.GPUVertexAttribute()
             {
@@ -123,6 +129,35 @@ var pipelineInfo = new SDL.GPUGraphicsPipelineCreateInfo()
                 Format = SDL.GPUVertexElementFormat.Float4,
                 Offset = sizeof(float) * 3,
             },
+
+            new SDL.GPUVertexAttribute()
+            {
+                BufferSlot = 1,
+                Location = 2,
+                Format = SDL.GPUVertexElementFormat.Float4,
+                Offset = (uint) sizeof(float) * 4 * 0,
+            },
+            new SDL.GPUVertexAttribute()
+            {
+                BufferSlot = 1,
+                Location = 3,
+                Format = SDL.GPUVertexElementFormat.Float4,
+                Offset = (uint) sizeof(float) * 4 * 1,
+            },
+            new SDL.GPUVertexAttribute()
+            {
+                BufferSlot = 1,
+                Location = 4,
+                Format = SDL.GPUVertexElementFormat.Float4,
+                Offset = (uint) sizeof(float) * 4 * 2,
+            },
+            new SDL.GPUVertexAttribute()
+            {
+                BufferSlot = 1,
+                Location = 5,
+                Format = SDL.GPUVertexElementFormat.Float4,
+                Offset = (uint) sizeof(float) * 4 * 3,
+            },
         ]),
     },
 };
@@ -137,20 +172,25 @@ uint w, h;
     w = (uint) ww;
     h = (uint) hh;
 }
-var depthStencilTexture = SDL.CreateGPUTexture(
-    device.Handle,
-    new SDL.GPUTextureCreateInfo()
-    {
-        Type = SDL.GPUTextureType.TextureType2D,
-        Width = w,
-        Height = h,
-        LayerCountOrDepth = 1,
-        NumLevels = 1,
-        SampleCount = SDL.GPUSampleCount.SampleCount1,
-        Format = depthStencilFormat,
-        Usage = SDL.GPUTextureUsageFlags.DepthStencilTarget,
-    }
-);
+
+var depthStencilTexture = createDepthTexture();
+nint createDepthTexture()
+{
+    return SDL.CreateGPUTexture(
+        device.Handle,
+        new SDL.GPUTextureCreateInfo()
+        {
+            Type = SDL.GPUTextureType.TextureType2D,
+            Width = w,
+            Height = h,
+            LayerCountOrDepth = 1,
+            NumLevels = 1,
+            SampleCount = SDL.GPUSampleCount.SampleCount1,
+            Format = depthStencilFormat,
+            Usage = SDL.GPUTextureUsageFlags.DepthStencilTarget,
+        }
+    );
+}
 
 using var cubeVertexBuffer = GpuBuffer.Create<Vertex>(device, SDL.GPUBufferUsageFlags.Vertex, [
     new(0, 0, 0, 0, 1, 1, 1), // 0
@@ -177,6 +217,19 @@ using var cubeIndexBuffer = GpuBuffer.Create<Int16>(device, SDL.GPUBufferUsageFl
     9, 8, 10,
 ]);
 
+const int count = 1000;
+var instances = Enumerable.Range(0, count)
+    .SelectMany(x =>
+        Enumerable.Range(0, count)
+            .Select(y => Matrix4x4.CreateTranslation(x + (x * .1f) - count / 2, -2 + MathF.Sin(MathF.Sqrt(x * x + y * y) / 2f), y + (y * .1f) - count / 2))
+    )
+    .ToArray();
+
+using var instanceData = GpuBuffer.Create<Matrix4x4>(device, SDL.GPUBufferUsageFlags.Vertex, instances);
+
+
+var nt = DateTime.Now + TimeSpan.FromSeconds(1);
+var f = 0;
 
 var frame = 0L;
 var loop = true;
@@ -184,11 +237,31 @@ while (loop)
 {
     frame++;
 
+    f++;
+    if (DateTime.Now > nt)
+    {
+        Console.WriteLine(f);
+        f = 0;
+        nt = DateTime.Now + TimeSpan.FromSeconds(1);
+    }
+
     while (SDL.PollEvent(out var e))
     {
-        if ((SDL.EventType) e.Type == SDL.EventType.Quit)
+        var type = (SDL.EventType) e.Type;
+
+        if (type == SDL.EventType.Quit)
         {
             loop = false;
+            break;
+        }
+
+        if (type == SDL.EventType.WindowResized)
+        {
+            w = (uint) e.Display.Data1;
+            h = (uint) e.Display.Data2;
+
+            SDL.Free(depthStencilTexture);
+            depthStencilTexture = createDepthTexture();
         }
     }
 
@@ -237,15 +310,18 @@ while (loop)
 
     SDL.BindGPUGraphicsPipeline(renderPass, graphicsPipeline);
 
-    var matrix = Matrix4x4.CreateLookAt(new(MathF.Sin(frame / 130f) * 3 + .5f, MathF.Sin(frame / 100f) * 1, MathF.Cos(frame / 130f) * 3 + .5f), new(0, 0, 0), Vector3.UnitY)
-        * Matrix4x4.CreatePerspectiveFieldOfView(90 * (MathF.PI / 180), 2f / 1, .01f, 100f);
+    var matrix = Matrix4x4.CreateLookAt(new(MathF.Sin(frame / 130f) * 3 + .5f, 1, MathF.Cos(frame / 130f) * 3 + .5f), new(0, 0, 0), Vector3.UnitY)
+        * Matrix4x4.CreatePerspectiveFieldOfView(90 * (MathF.PI / 180), (float) w / h, .01f, 100f);
 
     SDL.SetGPUStencilReference(renderPass, 0);
 
-    SDL.BindGPUVertexBuffers(renderPass, 0, StructureToPointer(new SDL.GPUBufferBinding() { Buffer = cubeVertexBuffer.Handle }), 1);
+    SDL.BindGPUVertexBuffers(renderPass, 0, SpanToPointer([
+        new SDL.GPUBufferBinding() { Buffer = cubeVertexBuffer.Handle },
+        new SDL.GPUBufferBinding() { Buffer = instanceData.Handle },
+    ]), 2);
     SDL.BindGPUIndexBuffer(renderPass, new SDL.GPUBufferBinding() { Buffer = cubeIndexBuffer.Handle }, SDL.GPUIndexElementSize.IndexElementSize16Bit);
     SDL.PushGPUVertexUniformData(commandBuffer, 0, StructureToPointer(in matrix), sizeof(float) * 4 * 4);
-    SDL.DrawGPUIndexedPrimitives(renderPass, (uint) cubeIndexBuffer.Length, 1, 0, 0, 0);
+    SDL.DrawGPUIndexedPrimitives(renderPass, (uint) cubeIndexBuffer.Length, (uint) instanceData.Length, 0, 0, 0);
 
     SDL.EndGPURenderPass(renderPass);
     SDL.SubmitGPUCommandBuffer(commandBuffer);
