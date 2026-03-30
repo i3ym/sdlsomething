@@ -113,7 +113,7 @@ var pipelineInfo = new SDL.GPUGraphicsPipelineCreateInfo()
             },
         ]),
 
-        NumVertexAttributes = 2 + 4,
+        NumVertexAttributes = 3 + 4,
         VertexAttributes = SpanToPointer([
             new SDL.GPUVertexAttribute()
             {
@@ -126,35 +126,42 @@ var pipelineInfo = new SDL.GPUGraphicsPipelineCreateInfo()
             {
                 BufferSlot = 0,
                 Location = 1,
-                Format = SDL.GPUVertexElementFormat.Float4,
+                Format = SDL.GPUVertexElementFormat.Float3,
                 Offset = sizeof(float) * 3,
+            },
+            new SDL.GPUVertexAttribute()
+            {
+                BufferSlot = 0,
+                Location = 2,
+                Format = SDL.GPUVertexElementFormat.Float4,
+                Offset = sizeof(float) * 3 + sizeof(float) * 3,
             },
 
             new SDL.GPUVertexAttribute()
             {
                 BufferSlot = 1,
-                Location = 2,
+                Location = 3,
                 Format = SDL.GPUVertexElementFormat.Float4,
                 Offset = (uint) sizeof(float) * 4 * 0,
             },
             new SDL.GPUVertexAttribute()
             {
                 BufferSlot = 1,
-                Location = 3,
+                Location = 4,
                 Format = SDL.GPUVertexElementFormat.Float4,
                 Offset = (uint) sizeof(float) * 4 * 1,
             },
             new SDL.GPUVertexAttribute()
             {
                 BufferSlot = 1,
-                Location = 4,
+                Location = 5,
                 Format = SDL.GPUVertexElementFormat.Float4,
                 Offset = (uint) sizeof(float) * 4 * 2,
             },
             new SDL.GPUVertexAttribute()
             {
                 BufferSlot = 1,
-                Location = 5,
+                Location = 6,
                 Format = SDL.GPUVertexElementFormat.Float4,
                 Offset = (uint) sizeof(float) * 4 * 3,
             },
@@ -193,40 +200,62 @@ nint createDepthTexture()
 }
 
 using var cubeVertexBuffer = GpuBuffer.Create<Vertex>(device, SDL.GPUBufferUsageFlags.Vertex, [
-    new(0, 0, 0, 0, 1, 1, 1), // 0
-    new(1, 0, 0, 1, 0, 1, 1), // 1
-    new(0, 1, 0, 1, 1, 0, 1), // 2
-    new(1, 1, 0, 1, 1, 1, 1), // 3
-    new(0, 0, 1, 1, 1, 1, 1), // 4
-    new(1, 0, 1, 1, 1, 1, 1), // 5
-    new(0, 1, 1, 1, 1, 1, 1), // 6
-    new(1, 1, 1, 1, 1, 1, 1), // 7
+    // bottom
+    new(0, 0, 0, 0, -1, 0, 1, 1, 1, 1), // 0
+    new(0, 0, 1, 0, -1, 0, 1, 1, 1, 1), // 1
+    new(1, 0, 1, 0, -1, 0, 1, 1, 1, 1), // 2
+    new(1, 0, 0, 0, -1, 0, 1, 1, 1, 1), // 3
 
-    new(0, 0, 2, 1, 0, 0, 1),
-    new(1, 0, 2, 1, 0, 1, 1),
-    new(1, 1, 2, 1, 0, 0, 1),
+    // top
+    new(0, 1, 0, 0, 1, 0, 1, 1, 1, 1), // 4
+    new(0, 1, 1, 0, 1, 0, 1, 1, 1, 1), // 5
+    new(1, 1, 1, 0, 1, 0, 1, 1, 1, 1), // 6
+    new(1, 1, 0, 0, 1, 0, 1, 1, 1, 1), // 7
+
+    // left
+    new(0, 0, 1, -1, 0, 0, 1, 1, 1, 1), // 8
+    new(0, 1, 1, -1, 0, 0, 1, 1, 1, 1), // 9
+    new(0, 1, 0, -1, 0, 0, 1, 1, 1, 1), // 10
+    new(0, 0, 0, -1, 0, 0, 1, 1, 1, 1), // 11
+
+    // right
+    new(1, 0, 0, 1, 0, 0, 1, 1, 1, 1), // 14
+    new(1, 1, 0, 1, 0, 0, 1, 1, 1, 1), // 12
+    new(1, 1, 1, 1, 0, 0, 1, 1, 1, 1), // 13
+    new(1, 0, 1, 1, 0, 0, 1, 1, 1, 1), // 15
+
+    // front
+    new(0, 0, 0, 0, 0, 1, 1, 1, 1, 1), // 16
+    new(0, 1, 0, 0, 0, 1, 1, 1, 1, 1), // 17
+    new(1, 1, 0, 0, 0, 1, 1, 1, 1, 1), // 18
+    new(1, 0, 0, 0, 0, 1, 1, 1, 1, 1), // 19
+
+    // back
+    new(1, 0, 1, 0, 0, -1, 1, 1, 1, 1), // 20
+    new(1, 1, 1, 0, 0, -1, 1, 1, 1, 1), // 21
+    new(0, 1, 1, 0, 0, -1, 1, 1, 1, 1), // 22
+    new(0, 0, 1, 0, 0, -1, 1, 1, 1, 1), // 23
 ]);
 using var cubeIndexBuffer = GpuBuffer.Create<Int16>(device, SDL.GPUBufferUsageFlags.Index, [
-    0, 2, 3, 0, 3, 1, // back
-    5, 7, 6, 5, 6, 4, // front
-    1, 3, 7, 1, 7, 5, // right
-    4, 6, 2, 4, 2, 0, // left
-    2, 6, 7, 2, 7, 3, // top
-    1, 5, 4, 1, 4, 0, // bottom
-
-    9, 8, 10,
+    0, 1, 2, 0, 2, 3,
+    4, 5, 6, 4, 6, 7,
+    8, 9, 10, 8, 10, 11,
+    12, 13, 14, 12, 14, 15,
+    16, 17, 18, 16, 18, 19,
+    20, 21, 22, 20, 22, 23,
 ]);
 
 const int count = 1000;
 var instances = Enumerable.Range(0, count)
     .SelectMany(x =>
         Enumerable.Range(0, count)
-            .Select(y => Matrix4x4.CreateTranslation(x + (x * .1f) - count / 2, -2 + MathF.Sin(MathF.Sqrt(x * x + y * y) / 2f), y + (y * .1f) - count / 2))
+            .Select(y => Matrix4x4.CreateTranslation(x + (x * .1f) - count / 2, -2, y + (y * .1f) - count / 2))
     )
     .ToArray();
 
 using var instanceData = GpuBuffer.Create<Matrix4x4>(device, SDL.GPUBufferUsageFlags.Vertex, instances);
 
+var sunDir = new Vector3(-.5f, -1, -.67f);
 
 var nt = DateTime.Now + TimeSpan.FromSeconds(1);
 var f = 0;
@@ -321,6 +350,7 @@ while (loop)
     ]), 2);
     SDL.BindGPUIndexBuffer(renderPass, new SDL.GPUBufferBinding() { Buffer = cubeIndexBuffer.Handle }, SDL.GPUIndexElementSize.IndexElementSize16Bit);
     SDL.PushGPUVertexUniformData(commandBuffer, 0, StructureToPointer(in matrix), sizeof(float) * 4 * 4);
+    SDL.PushGPUFragmentUniformData(commandBuffer, 0, StructureToPointer(in sunDir), sizeof(float) * 3);
     SDL.DrawGPUIndexedPrimitives(renderPass, (uint) cubeIndexBuffer.Length, (uint) instanceData.Length, 0, 0, 0);
 
     SDL.EndGPURenderPass(renderPass);
@@ -339,13 +369,17 @@ static unsafe nint SpanToPointer<T>(ReadOnlySpan<T> span) where T : unmanaged =>
 readonly struct Vertex
 {
     public readonly float X, Y, Z;
+    public readonly float NX, NY, NZ;
     public readonly float R, G, B, A;
 
-    public Vertex(float x, float y, float z, float r, float g, float b, float a)
+    public Vertex(float x, float y, float z, float nx, float ny, float nz, float r, float g, float b, float a)
     {
         X = x;
         Y = y;
         Z = z;
+        NX = nx;
+        NY = ny;
+        NZ = nz;
         R = r;
         G = g;
         B = b;
