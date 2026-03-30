@@ -1,6 +1,19 @@
 namespace SdlSomething;
 
-public readonly struct GpuBuffer<T>
+public static class GpuBuffer
+{
+    public static GpuBuffer<T> Create<T>(GpuDevice device, SDL.GPUBufferUsageFlags flags, ReadOnlySpan<T> span)
+        where T : unmanaged
+    {
+        var buffer = new GpuBuffer<T>(device, span.Length, flags);
+        using (var upload = new GpuTransferBuffer<T>(buffer))
+            GpuTransferBuffer.UploadOnce(upload, span);
+
+        return buffer;
+    }
+}
+
+public readonly struct GpuBuffer<T> : IDisposable
     where T : unmanaged
 {
     public readonly GpuDevice Device;
@@ -20,4 +33,6 @@ public readonly struct GpuBuffer<T>
             Usage = flags,
         });
     }
+
+    public void Dispose() => SDL.Free(Handle);
 }

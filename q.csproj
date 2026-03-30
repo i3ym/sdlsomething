@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SDL3-CS" Version="3.3.6" />
+    <PackageReference Include="SDL3-CS" Version="3.4.2" />
   </ItemGroup>
 
 </Project>

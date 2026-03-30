@@ -75,13 +75,23 @@ public readonly struct TransferBuffer<T>
     }
 }
 
-public readonly struct GpuTransferBuffer<T>
+public static class GpuTransferBuffer
+{
+    public static void UploadOnce<T>(in GpuTransferBuffer<T> transferBuffer, ReadOnlySpan<T> span)
+        where T : unmanaged
+    {
+        var commandBuffer = SDL.AcquireGPUCommandBuffer(transferBuffer.Device.Handle);
+        transferBuffer.WriteAndCopy(commandBuffer, span);
+        SDL.SubmitGPUCommandBuffer(commandBuffer);
+    }
+}
+
+public readonly struct GpuTransferBuffer<T> : IDisposable
     where T : unmanaged
 {
-    GpuDevice Device => Buffer.Device;
-
-    readonly GpuBuffer<T> Buffer;
-    readonly nint Handle;
+    public GpuDevice Device => Buffer.Device;
+    public readonly GpuBuffer<T> Buffer;
+    public readonly nint Handle;
 
     public GpuTransferBuffer(in GpuBuffer<T> buffer)
     {
@@ -132,6 +142,8 @@ public readonly struct GpuTransferBuffer<T>
         Write(data);
         CopyToBuffer(commandBuffer);
     }
+
+    public void Dispose() => SDL.Free(Handle);
 
     public readonly ref struct MappedTransferBuffer
     {
