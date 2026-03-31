@@ -199,51 +199,54 @@ nint createDepthTexture()
     );
 }
 
-using var cubeVertexBuffer = GpuBuffer.Create<Vertex>(device, SDL.GPUBufferUsageFlags.Vertex, [
-    // bottom
-    new(0, 0, 0, 0, -1, 0, 1, 1, 1, 1), // 0
-    new(0, 0, 1, 0, -1, 0, 1, 1, 1, 1), // 1
-    new(1, 0, 1, 0, -1, 0, 1, 1, 1, 1), // 2
-    new(1, 0, 0, 0, -1, 0, 1, 1, 1, 1), // 3
+var cubeMesh = new Mesh()
+{
+    VerticesArr = [
+        // bottom
+        new(0, 0, 0, 0, -1, 0, 1, 1, 1, 1), // 0
+        new(0, 0, 1, 0, -1, 0, 1, 1, 1, 1), // 1
+        new(1, 0, 1, 0, -1, 0, 1, 1, 1, 1), // 2
+        new(1, 0, 0, 0, -1, 0, 1, 1, 1, 1), // 3
 
-    // top
-    new(0, 1, 0, 0, 1, 0, 1, 1, 1, 1), // 4
-    new(0, 1, 1, 0, 1, 0, 1, 1, 1, 1), // 5
-    new(1, 1, 1, 0, 1, 0, 1, 1, 1, 1), // 6
-    new(1, 1, 0, 0, 1, 0, 1, 1, 1, 1), // 7
+        // top
+        new(0, 1, 0, 0, 1, 0, 1, 1, 1, 1), // 4
+        new(0, 1, 1, 0, 1, 0, 1, 1, 1, 1), // 5
+        new(1, 1, 1, 0, 1, 0, 1, 1, 1, 1), // 6
+        new(1, 1, 0, 0, 1, 0, 1, 1, 1, 1), // 7
 
-    // left
-    new(0, 0, 1, -1, 0, 0, 1, 1, 1, 1), // 8
-    new(0, 1, 1, -1, 0, 0, 1, 1, 1, 1), // 9
-    new(0, 1, 0, -1, 0, 0, 1, 1, 1, 1), // 10
-    new(0, 0, 0, -1, 0, 0, 1, 1, 1, 1), // 11
+        // left
+        new(0, 0, 1, -1, 0, 0, 1, 1, 1, 1), // 8
+        new(0, 1, 1, -1, 0, 0, 1, 1, 1, 1), // 9
+        new(0, 1, 0, -1, 0, 0, 1, 1, 1, 1), // 10
+        new(0, 0, 0, -1, 0, 0, 1, 1, 1, 1), // 11
 
-    // right
-    new(1, 0, 0, 1, 0, 0, 1, 1, 1, 1), // 14
-    new(1, 1, 0, 1, 0, 0, 1, 1, 1, 1), // 12
-    new(1, 1, 1, 1, 0, 0, 1, 1, 1, 1), // 13
-    new(1, 0, 1, 1, 0, 0, 1, 1, 1, 1), // 15
+        // right
+        new(1, 0, 0, 1, 0, 0, 1, 1, 1, 1), // 14
+        new(1, 1, 0, 1, 0, 0, 1, 1, 1, 1), // 12
+        new(1, 1, 1, 1, 0, 0, 1, 1, 1, 1), // 13
+        new(1, 0, 1, 1, 0, 0, 1, 1, 1, 1), // 15
 
-    // front
-    new(0, 0, 0, 0, 0, 1, 1, 1, 1, 1), // 16
-    new(0, 1, 0, 0, 0, 1, 1, 1, 1, 1), // 17
-    new(1, 1, 0, 0, 0, 1, 1, 1, 1, 1), // 18
-    new(1, 0, 0, 0, 0, 1, 1, 1, 1, 1), // 19
+        // front
+        new(0, 0, 0, 0, 0, 1, 1, 1, 1, 1), // 16
+        new(0, 1, 0, 0, 0, 1, 1, 1, 1, 1), // 17
+        new(1, 1, 0, 0, 0, 1, 1, 1, 1, 1), // 18
+        new(1, 0, 0, 0, 0, 1, 1, 1, 1, 1), // 19
 
-    // back
-    new(1, 0, 1, 0, 0, -1, 1, 1, 1, 1), // 20
-    new(1, 1, 1, 0, 0, -1, 1, 1, 1, 1), // 21
-    new(0, 1, 1, 0, 0, -1, 1, 1, 1, 1), // 22
-    new(0, 0, 1, 0, 0, -1, 1, 1, 1, 1), // 23
-]);
-using var cubeIndexBuffer = GpuBuffer.Create<Int16>(device, SDL.GPUBufferUsageFlags.Index, [
-    0, 1, 2, 0, 2, 3,
-    4, 5, 6, 4, 6, 7,
-    8, 9, 10, 8, 10, 11,
-    12, 13, 14, 12, 14, 15,
-    16, 17, 18, 16, 18, 19,
-    20, 21, 22, 20, 22, 23,
-]);
+        // back
+        new(1, 0, 1, 0, 0, -1, 1, 1, 1, 1), // 20
+        new(1, 1, 1, 0, 0, -1, 1, 1, 1, 1), // 21
+        new(0, 1, 1, 0, 0, -1, 1, 1, 1, 1), // 22
+        new(0, 0, 1, 0, 0, -1, 1, 1, 1, 1), // 23
+    ],
+    IndicesArr = [
+        0, 1, 2, 0, 2, 3,
+        4, 5, 6, 4, 6, 7,
+        8, 9, 10, 8, 10, 11,
+        12, 13, 14, 12, 14, 15,
+        16, 17, 18, 16, 18, 19,
+        20, 21, 22, 20, 22, 23,
+    ],
+};
 
 const int count = 1000;
 var instances = Enumerable.Range(0, count)
@@ -296,19 +299,7 @@ while (loop)
 
 
     var commandBuffer = SDL.AcquireGPUCommandBuffer(device.Handle);
-
-    // var ft = frame / 100f;
-    // ft += MathF.Sin(frame / 50f);
-    // vtb.WriteAndCopy(commandBuffer, [
-    //     new(MathF.Sin(ft + MathF.PI * 2 / 4 * 0), MathF.Cos(ft + MathF.PI * 2 / 4 * 0), 0, 1, 0, 0, 1),
-    //     new(MathF.Sin(ft + MathF.PI * 2 / 4 * 1), MathF.Cos(ft + MathF.PI * 2 / 4 * 1), 0, 1, 1, 0, 1),
-    //     new(MathF.Sin(ft + MathF.PI * 2 / 4 * 2), MathF.Cos(ft + MathF.PI * 2 / 4 * 2), 0, 1, 0, 1, 1),
-
-    //     // new(MathF.Sin(ft + MathF.PI * 2 / 4 * 0), MathF.Cos(ft + MathF.PI * 2 / 4 * 0), 0, 1, 0, 0, 1),
-    //     // new(MathF.Sin(ft + MathF.PI * 2 / 4 * 2), MathF.Cos(ft + MathF.PI * 2 / 4 * 2), 0, 1, 0, 1, 1),
-    //     new(MathF.Sin(ft + MathF.PI * 2 / 4 * 3), MathF.Cos(ft + MathF.PI * 2 / 4 * 3), 0, 1, 0, 1, 1),
-    // ]);
-    // itb.WriteAndCopy(commandBuffer, [0, 1, 2, 0, 2, 3]);
+    cubeMesh.PrepareFrame(device, commandBuffer);
 
     SDL.WaitAndAcquireGPUSwapchainTexture(commandBuffer, window, out var swapchainTexture, out w, out h);
     if (swapchainTexture == nint.Zero)
@@ -344,14 +335,14 @@ while (loop)
 
     SDL.SetGPUStencilReference(renderPass, 0);
 
-    SDL.BindGPUVertexBuffers(renderPass, 0, SpanToPointer([
-        new SDL.GPUBufferBinding() { Buffer = cubeVertexBuffer.Handle },
-        new SDL.GPUBufferBinding() { Buffer = instanceData.Handle },
-    ]), 2);
-    SDL.BindGPUIndexBuffer(renderPass, new SDL.GPUBufferBinding() { Buffer = cubeIndexBuffer.Handle }, SDL.GPUIndexElementSize.IndexElementSize16Bit);
+
+    cubeMesh.GetBindings(out var vertb, out var indb);
+    SDL.BindGPUVertexBuffers(renderPass, 0, SpanToPointer([vertb, new SDL.GPUBufferBinding() { Buffer = instanceData.Handle }]), 2);
+    SDL.BindGPUIndexBuffer(renderPass, indb, SDL.GPUIndexElementSize.IndexElementSize16Bit);
     SDL.PushGPUVertexUniformData(commandBuffer, 0, StructureToPointer(in matrix), sizeof(float) * 4 * 4);
     SDL.PushGPUFragmentUniformData(commandBuffer, 0, StructureToPointer(in sunDir), sizeof(float) * 3);
-    SDL.DrawGPUIndexedPrimitives(renderPass, (uint) cubeIndexBuffer.Length, (uint) instanceData.Length, 0, 0, 0);
+    SDL.DrawGPUIndexedPrimitives(renderPass, (uint) cubeMesh.Indices.Length, (uint) instanceData.Length, 0, 0, 0);
+
 
     SDL.EndGPURenderPass(renderPass);
     SDL.SubmitGPUCommandBuffer(commandBuffer);
@@ -385,4 +376,59 @@ readonly struct Vertex
         B = b;
         A = a;
     }
-};
+}
+
+
+sealed class Mesh
+{
+    GpuBuffer<Vertex> GpuVertices;
+    GpuBuffer<Int16> GpuIndices;
+    bool NeedsUpload = false;
+
+    public Vertex[] VerticesArr { set => Vertices = value; }
+    public Int16[] IndicesArr { set => Indices = value; }
+    public Memory<Vertex> Vertices { get => field; set { NeedsUpload = true; field = value; } }
+    public Memory<Int16> Indices { get => field; set { NeedsUpload = true; field = value; } }
+
+    internal void PrepareFrame(GpuDevice device, nint commandBuffer)
+    {
+        if (GpuVertices.Handle == nint.Zero || GpuIndices.Handle == nint.Zero)
+        {
+            if (!NeedsUpload)
+            {
+                GpuVertices = new GpuBuffer<Vertex>(device, 0, SDL.GPUBufferUsageFlags.Vertex);
+                GpuIndices = new GpuBuffer<Int16>(device, 0, SDL.GPUBufferUsageFlags.Index);
+                return;
+            }
+
+            GpuVertices = new GpuBuffer<Vertex>(device, Vertices.Length, SDL.GPUBufferUsageFlags.Vertex);
+            GpuIndices = new GpuBuffer<Int16>(device, Indices.Length, SDL.GPUBufferUsageFlags.Index);
+        }
+
+        if (NeedsUpload)
+        {
+            NeedsUpload = false;
+            if (GpuVertices.Length < Vertices.Length)
+            {
+                GpuVertices.Dispose();
+                GpuVertices = GpuVertices = new GpuBuffer<Vertex>(device, Vertices.Length, SDL.GPUBufferUsageFlags.Vertex);
+            }
+            if (GpuIndices.Length < Indices.Length)
+            {
+                GpuIndices.Dispose();
+                GpuIndices = GpuIndices = new GpuBuffer<Int16>(device, Indices.Length, SDL.GPUBufferUsageFlags.Index);
+            }
+
+            // temporary bad creation of transfer buffers
+            using (var tbv = new GpuTransferBuffer<Vertex>(GpuVertices))
+                tbv.WriteAndCopy(commandBuffer, Vertices.Span);
+            using (var tbi = new GpuTransferBuffer<Int16>(GpuIndices))
+                tbi.WriteAndCopy(commandBuffer, Indices.Span);
+        }
+    }
+    internal void GetBindings([MaybeNullWhen(false)] out SDL.GPUBufferBinding vertices, [MaybeNullWhen(false)] out SDL.GPUBufferBinding indices)
+    {
+        vertices = new SDL.GPUBufferBinding() { Buffer = GpuVertices.Handle };
+        indices = new SDL.GPUBufferBinding() { Buffer = GpuIndices.Handle };
+    }
+}
