@@ -199,7 +199,7 @@ nint createDepthTexture()
     );
 }
 
-var cubeMesh = new Mesh()
+using var _cubeMesh = new Mesh(device)
 {
     VerticesArr = [
         // bottom
@@ -247,16 +247,15 @@ var cubeMesh = new Mesh()
         20, 21, 22, 20, 22, 23,
     ],
 };
+using var cubeMeshGroup = new MeshGroup(_cubeMesh);
 
 const int count = 1000;
 var instances = Enumerable.Range(0, count)
     .SelectMany(x =>
         Enumerable.Range(0, count)
-            .Select(y => Matrix4x4.CreateTranslation(x + (x * .1f) - count / 2, -2, y + (y * .1f) - count / 2))
-    )
-    .ToArray();
-
-using var instanceData = GpuBuffer.Create<Matrix4x4>(device, SDL.GPUBufferUsageFlags.Vertex, instances);
+            .Select(y => new InstanceData(Matrix4x4.CreateTranslation(x + (x * .1f) - count / 2, -2, y + (y * .1f) - count / 2)))
+    );
+cubeMeshGroup.SetRange(instances.ToArray());
 
 var sunDir = new Vector3(-.5f, -1, -.67f);
 
@@ -298,8 +297,11 @@ while (loop)
     }
 
 
+    var cameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(frame / 130f) * 3 + .5f, 1, MathF.Cos(frame / 130f) * 3 + .5f), new(0, 0, 0), Vector3.UnitY)
+        * Matrix4x4.CreatePerspectiveFieldOfView(90 * (MathF.PI / 180), (float) w / h, .01f, 100f);
+
     var commandBuffer = SDL.AcquireGPUCommandBuffer(device.Handle);
-    cubeMesh.PrepareFrame(device, commandBuffer);
+    cubeMeshGroup.PrepareFrame(commandBuffer);
 
     SDL.WaitAndAcquireGPUSwapchainTexture(commandBuffer, window, out var swapchainTexture, out w, out h);
     if (swapchainTexture == nint.Zero)
@@ -329,19 +331,14 @@ while (loop)
     var renderPass = SDL.BeginGPURenderPass(commandBuffer, StructureToPointer(colorTarget), 1, StructureToPointer(stencil));
 
     SDL.BindGPUGraphicsPipeline(renderPass, graphicsPipeline);
-
-    var matrix = Matrix4x4.CreateLookAt(new(MathF.Sin(frame / 130f) * 3 + .5f, 1, MathF.Cos(frame / 130f) * 3 + .5f), new(0, 0, 0), Vector3.UnitY)
-        * Matrix4x4.CreatePerspectiveFieldOfView(90 * (MathF.PI / 180), (float) w / h, .01f, 100f);
-
     SDL.SetGPUStencilReference(renderPass, 0);
-
-
-    cubeMesh.GetBindings(out var vertb, out var indb);
-    SDL.BindGPUVertexBuffers(renderPass, 0, SpanToPointer([vertb, new SDL.GPUBufferBinding() { Buffer = instanceData.Handle }]), 2);
-    SDL.BindGPUIndexBuffer(renderPass, indb, SDL.GPUIndexElementSize.IndexElementSize16Bit);
-    SDL.PushGPUVertexUniformData(commandBuffer, 0, StructureToPointer(in matrix), sizeof(float) * 4 * 4);
     SDL.PushGPUFragmentUniformData(commandBuffer, 0, StructureToPointer(in sunDir), sizeof(float) * 3);
-    SDL.DrawGPUIndexedPrimitives(renderPass, (uint) cubeMesh.Indices.Length, (uint) instanceData.Length, 0, 0, 0);
+
+    cubeMeshGroup.GetBindings(out var vertb, out var indb, out var instab, out var indc, out var instl);
+    SDL.BindGPUVertexBuffers(renderPass, 0, SpanToPointer([vertb, instab]), 2);
+    SDL.BindGPUIndexBuffer(renderPass, indb, SDL.GPUIndexElementSize.IndexElementSize16Bit);
+    SDL.PushGPUVertexUniformData(commandBuffer, 0, StructureToPointer(in cameraMatrix), sizeof(float) * 4 * 4);
+    SDL.DrawGPUIndexedPrimitives(renderPass, indc, instl, 0, 0, 0);
 
 
     SDL.EndGPURenderPass(renderPass);
@@ -379,56 +376,80 @@ readonly struct Vertex
 }
 
 
-sealed class Mesh
+sealed class Mesh : IDisposable
 {
-    GpuBuffer<Vertex> GpuVertices;
-    GpuBuffer<Int16> GpuIndices;
-    bool NeedsUpload = false;
+    public GpuDevice Device => GpuVertices.Device;
+    readonly ResizableGpuBuffer<Vertex> GpuVertices;
+    readonly ResizableGpuBuffer<Int16> GpuIndices;
 
-    public Vertex[] VerticesArr { set => Vertices = value; }
-    public Int16[] IndicesArr { set => Indices = value; }
-    public Memory<Vertex> Vertices { get => field; set { NeedsUpload = true; field = value; } }
-    public Memory<Int16> Indices { get => field; set { NeedsUpload = true; field = value; } }
+    public int IndicesCount => ReadonlyIndices.Length;
 
-    internal void PrepareFrame(GpuDevice device, nint commandBuffer)
+    public Vertex[] VerticesArr { set => WritableVertices = value; }
+    public Int16[] IndicesArr { set => WritableIndices = value; }
+    public ReadOnlyMemory<Vertex> ReadonlyVertices => GpuVertices.ReadonlyData;
+    public ReadOnlyMemory<Int16> ReadonlyIndices => GpuIndices.ReadonlyData;
+    public ref Memory<Vertex> WritableVertices => ref GpuVertices.WritableData;
+    public ref Memory<Int16> WritableIndices => ref GpuIndices.WritableData;
+
+    public Mesh(GpuDevice device)
     {
-        if (GpuVertices.Handle == nint.Zero || GpuIndices.Handle == nint.Zero)
-        {
-            if (!NeedsUpload)
-            {
-                GpuVertices = new GpuBuffer<Vertex>(device, 0, SDL.GPUBufferUsageFlags.Vertex);
-                GpuIndices = new GpuBuffer<Int16>(device, 0, SDL.GPUBufferUsageFlags.Index);
-                return;
-            }
-
-            GpuVertices = new GpuBuffer<Vertex>(device, Vertices.Length, SDL.GPUBufferUsageFlags.Vertex);
-            GpuIndices = new GpuBuffer<Int16>(device, Indices.Length, SDL.GPUBufferUsageFlags.Index);
-        }
-
-        if (NeedsUpload)
-        {
-            NeedsUpload = false;
-            if (GpuVertices.Length < Vertices.Length)
-            {
-                GpuVertices.Dispose();
-                GpuVertices = GpuVertices = new GpuBuffer<Vertex>(device, Vertices.Length, SDL.GPUBufferUsageFlags.Vertex);
-            }
-            if (GpuIndices.Length < Indices.Length)
-            {
-                GpuIndices.Dispose();
-                GpuIndices = GpuIndices = new GpuBuffer<Int16>(device, Indices.Length, SDL.GPUBufferUsageFlags.Index);
-            }
-
-            // temporary bad creation of transfer buffers
-            using (var tbv = new GpuTransferBuffer<Vertex>(GpuVertices))
-                tbv.WriteAndCopy(commandBuffer, Vertices.Span);
-            using (var tbi = new GpuTransferBuffer<Int16>(GpuIndices))
-                tbi.WriteAndCopy(commandBuffer, Indices.Span);
-        }
+        GpuVertices = new(device, SDL.GPUBufferUsageFlags.Vertex);
+        GpuIndices = new(device, SDL.GPUBufferUsageFlags.Index);
     }
-    internal void GetBindings([MaybeNullWhen(false)] out SDL.GPUBufferBinding vertices, [MaybeNullWhen(false)] out SDL.GPUBufferBinding indices)
+
+    internal void PrepareFrame(nint commandBuffer)
     {
-        vertices = new SDL.GPUBufferBinding() { Buffer = GpuVertices.Handle };
-        indices = new SDL.GPUBufferBinding() { Buffer = GpuIndices.Handle };
+        GpuVertices.PrepareFrame(commandBuffer);
+        GpuIndices.PrepareFrame(commandBuffer);
+    }
+    internal void GetBindings(out SDL.GPUBufferBinding vertices, out SDL.GPUBufferBinding indices)
+    {
+        GpuVertices.GetBinding(out vertices);
+        GpuIndices.GetBinding(out indices);
+    }
+
+    public void Dispose()
+    {
+        GpuVertices.Dispose();
+        GpuIndices.Dispose();
     }
 }
+sealed class MeshGroup : IDisposable
+{
+    readonly Mesh Mesh;
+    readonly ResizableGpuBuffer<InstanceData> InstanceData;
+
+    public MeshGroup(Mesh mesh)
+    {
+        Mesh = mesh;
+        InstanceData = new(mesh.Device, SDL.GPUBufferUsageFlags.Vertex);
+    }
+
+    public ref InstanceData DataFor(int index) => ref InstanceData.WritableData.Span[index];
+
+    public void SetRange(Memory<InstanceData> instances)
+    {
+        InstanceData.WritableData = instances;
+    }
+
+    internal void PrepareFrame(nint commandBuffer)
+    {
+        Mesh.PrepareFrame(commandBuffer);
+        InstanceData.PrepareFrame(commandBuffer);
+    }
+    internal void GetBindings(out SDL.GPUBufferBinding vertices, out SDL.GPUBufferBinding indices, out SDL.GPUBufferBinding instances, out uint indicesCount, out uint instanceCount)
+    {
+        Mesh.GetBindings(out vertices, out indices);
+        InstanceData.GetBinding(out instances);
+        indicesCount = (uint) Mesh.IndicesCount;
+        instanceCount = (uint) InstanceData.Length;
+    }
+
+    public void Dispose()
+    {
+        Mesh.Dispose();
+        InstanceData.Dispose();
+    }
+}
+
+readonly record struct InstanceData(Matrix4x4 Transform);
