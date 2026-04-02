@@ -11,7 +11,7 @@ if (!SDL.Init(SDL.InitFlags.Video))
     SDL.LogError(SDL.LogCategory.System, $"SDL could not initialize: {SDL.GetError()}");
     return;
 }
-var window = SDL.CreateWindow("SDL3 Create Window", 2560, 1440, SDL.WindowFlags.Resizable);
+var window = SDL.CreateWindow("WAAA", 2560, 1440, SDL.WindowFlags.Resizable);
 var device = new GpuDevice();
 if (!SDL.ClaimWindowForGPUDevice(device.Handle, window))
     throw new Exception(SDL.GetError());
@@ -47,14 +47,15 @@ var groups = new List<IRenderGroup>();
 
 
 {
+    const int count = 1000;
     var _cubeMesh = new Mesh<VertexPN>(device)
     {
         VerticesArr = [
             // bottom
-            new(0, 0, 0, 0, -1, 0), // 0
-            new(0, 0, 1, 0, -1, 0), // 1
-            new(1, 0, 1, 0, -1, 0), // 2
-            new(1, 0, 0, 0, -1, 0), // 3
+            new(1, 0, 0, 0, -1, 0), // 0
+            new(1, 0, 1, 0, -1, 0), // 1
+            new(0, 0, 1, 0, -1, 0), // 2
+            new(0, 0, 0, 0, -1, 0), // 3
 
             // top
             new(0, 1, 0, 0, 1, 0), // 4
@@ -99,7 +100,6 @@ var groups = new List<IRenderGroup>();
     var cubes = new RenderGroup<VertexPN, StandardMaterial.InstanceData>(_cubeMesh, material);
     groups.Add(cubes);
 
-    const int count = 1000;
     var instances = Enumerable.Range(0, count)
         .SelectMany(x =>
             Enumerable.Range(0, count)
@@ -181,20 +181,12 @@ while (loop)
         StencilStoreOp = SDL.GPUStoreOp.DontCare,
     };
     var renderPass = SDL.BeginGPURenderPass(commandBuffer, StructureToPointer(colorTarget), 1, StructureToPointer(stencil));
-
-    const int count = 400;
-    var instances = Enumerable.Range(0, count)
-        .SelectMany(x =>
-            Enumerable.Range(0, count)
-                .Select(y => new StandardMaterial.InstanceData(Matrix4x4.CreateTranslation(x + (x * .1f) - count / 2, MathF.Sin((frame + x * 100) / 100f) / 2f + MathF.Cos((frame + y * 90) / 100f) / 2f - 2, y + (y * .1f) - count / 2), new Vector4(MathF.Sin((frame / 10f) + y / 2f) / 2 + .5f, MathF.Cos(x / 3f) / 2 + .5f, 1, 1)))
-        );
-    ((RenderGroup<VertexPN, StandardMaterial.InstanceData>) groups[0]).SetRange(instances.ToArray());
+    SDL.SetGPUStencilReference(renderPass, 0);
+    SDL.PushGPUFragmentUniformData(commandBuffer, 0, StructureToPointer(in sunDir), sizeof(float) * 3);
 
     foreach (var group in groups)
     {
         group.BeginFrame(renderPass);
-        SDL.SetGPUStencilReference(renderPass, 0);
-        SDL.PushGPUFragmentUniformData(commandBuffer, 0, StructureToPointer(in sunDir), sizeof(float) * 3);
         group.GetBindings(out var vertb, out var indb, out var instab, out var indc, out var instl);
         SDL.BindGPUVertexBuffers(renderPass, 0, SpanToPointer([vertb, instab]), 2);
         SDL.BindGPUIndexBuffer(renderPass, indb, SDL.GPUIndexElementSize.IndexElementSize16Bit);
@@ -458,6 +450,7 @@ sealed class RenderGroup<TVertex, TInstance> : IRenderGroup
     }
 
     public ref TInstance DataFor(int index) => ref InstanceData.WritableData.Span[index];
+    public Span<TInstance> GetData() => InstanceData.WritableData.Span;
     public void SetRange(Memory<TInstance> instances) => InstanceData.WritableData = instances;
 
     public void PrepareFrame(nint commandBuffer)
