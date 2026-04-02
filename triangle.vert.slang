@@ -2,12 +2,12 @@ struct VSInput
 {
     float3 position : POSITION;
     float3 normal : NORMAL;
-    float4 color : COLOR;
 
     float4 transformCol0 : TEXCOORD0;
     float4 transformCol1 : TEXCOORD1;
     float4 transformCol2 : TEXCOORD2;
     float4 transformCol3 : TEXCOORD3;
+    float4 color : TEXCOORD3;
 };
 
 struct VSOutput
