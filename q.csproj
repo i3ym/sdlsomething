@@ -10,7 +10,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Flecs.NET.Debug" Version="4.0.3" />
     <PackageReference Include="SDL3-CS" Version="3.4.2" />
   </ItemGroup>
 
