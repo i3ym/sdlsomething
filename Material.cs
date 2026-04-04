@@ -1,7 +1,6 @@
 namespace SdlSomething;
 
-public readonly struct MaterialPipelineProperties<T>
-    where T : unmanaged
+public readonly struct MaterialPipelineProperties
 {
     public readonly record struct VertexBufferInfo(VertexDescription Description, VertexAttribute[] Attributes);
     public readonly record struct VertexDescription(SDL.GPUVertexInputRate InputRate, uint Pitch);
@@ -107,6 +106,28 @@ public abstract class Material<T> : IMaterial
 
     public void Dispose() => SDL.ReleaseGPUGraphicsPipeline(Device.Handle, GraphicsPipeline);
 }
+
+public readonly struct VertexPN
+{
+    public readonly float X, Y, Z;
+    public readonly float NX, NY, NZ;
+
+    public VertexPN(float x, float y, float z)
+    {
+        X = x;
+        Y = y;
+        Z = z;
+    }
+    public VertexPN(float x, float y, float z, float nx, float ny, float nz)
+    {
+        X = x;
+        Y = y;
+        Z = z;
+        NX = nx;
+        NY = ny;
+        NZ = nz;
+    }
+}
 public sealed class StandardMaterial : Material<VertexPN>
 {
     public readonly struct InstanceData
@@ -121,10 +142,9 @@ public sealed class StandardMaterial : Material<VertexPN>
         }
     }
 
-
     static unsafe SDL.GPUGraphicsPipelineCreateInfo BuildInfo(GpuDevice device, Window window)
     {
-        var props = new MaterialPipelineProperties<VertexPN>()
+        var props = new MaterialPipelineProperties()
         {
             DepthStencilFormat = GetStencilFormat(device),
             VertexBuffers = [
@@ -156,8 +176,5 @@ public sealed class StandardMaterial : Material<VertexPN>
     }
 
     public StandardMaterial(GpuDevice device, Window window)
-        : base(device, BuildInfo(device, window))
-    {
-
-    }
+        : base(device, BuildInfo(device, window)) { }
 }

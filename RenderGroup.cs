@@ -23,6 +23,7 @@ public sealed class RenderGroup<TVertex, TInstance> : IRenderGroup
 
     public ref TInstance DataFor(int index) => ref InstanceData.WritableData.Span[index];
     public Span<TInstance> GetData() => InstanceData.WritableData.Span;
+    public void SetRange(TInstance[] instances) => InstanceData.WritableData = instances;
     public void SetRange(Memory<TInstance> instances) => InstanceData.WritableData = instances;
 
     public void PrepareFrame(nint commandBuffer)

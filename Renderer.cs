@@ -4,7 +4,7 @@ public sealed class Renderer
 {
     public nint MainDepthStencilTexture { get; private set; }
 
-    //     public ulong Frame { get; private set; }
+    public ulong Frame { get; private set; }
     public uint WindowWidth { get; private set; }
     public uint WindowHeight { get; private set; }
 
@@ -30,6 +30,7 @@ public sealed class Renderer
 
     public void Render()
     {
+        Frame++;
         var commandBuffer = SDL.AcquireGPUCommandBuffer(Device.Handle);
 
         SDL.WaitAndAcquireGPUSwapchainTexture(commandBuffer, Window.Handle, out var swapchainTexture, out var w, out var h);

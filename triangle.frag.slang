@@ -1,7 +1,7 @@
 struct VSOutput
 {
     float4 color : COLOR;
-    float3 normal : TEXCOORD0;
+    nointerpolation float3 normal : TEXCOORD0;
 };
 
 struct UniformData
