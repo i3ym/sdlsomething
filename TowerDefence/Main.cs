@@ -4,7 +4,7 @@ public sealed class Main
 {
     public Main()
     {
-
+        
     }
 }
 

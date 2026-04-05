@@ -22,7 +22,7 @@ var depthStencilFormat = GetStencilFormat(device);
 
 var renderer = new Renderer(window, device);
 
-var game = new Game(renderer);
+var game = new SdlSomething.TowerDefence.Game(renderer);
 
 var nt = DateTime.Now + TimeSpan.FromSeconds(1);
 var f = 0;

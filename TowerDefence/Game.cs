@@ -1,4 +1,4 @@
-namespace SdlSomething;
+namespace SdlSomething.TowerDefence;
 
 public sealed class Game
 {
