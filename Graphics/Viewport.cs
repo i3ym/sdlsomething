@@ -1,12 +1,12 @@
-namespace SdlSomething;
+namespace SdlSomething.Graphics;
 
 public abstract class Viewport
 {
     public Renderer Renderer { get; }
-    public World World { get; set; }
+    public RenderWorld World { get; set; }
     public Matrix4x4 CameraMatrix { get; set; } = Matrix4x4.Identity;
 
-    protected Viewport(Renderer renderer, World world)
+    protected Viewport(Renderer renderer, RenderWorld world)
     {
         Renderer = renderer;
         World = world;
@@ -36,7 +36,7 @@ sealed class MainViewport : Viewport
     protected override float RealWidth => Renderer.WindowWidth;
     protected override float RealHeight => Renderer.WindowHeight;
 
-    public MainViewport(Renderer renderer, World world) : base(renderer, world) { }
+    public MainViewport(Renderer renderer, RenderWorld world) : base(renderer, world) { }
 
     protected override nint BeginRenderPass(nint commandBuffer, nint colorTexture)
     {
@@ -73,7 +73,7 @@ public sealed class SubViewport : Viewport
     public uint Width { get => (uint) Info.W; set => Info.W = value; }
     public uint Height { get => (uint) Info.H; set => Info.H = value; }
 
-    public SubViewport(Renderer renderer, World world) : base(renderer, world) { }
+    public SubViewport(Renderer renderer, RenderWorld world) : base(renderer, world) { }
 
     protected override nint BeginRenderPass(nint commandBuffer, nint colorTexture)
     {

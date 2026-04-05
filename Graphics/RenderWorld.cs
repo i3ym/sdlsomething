@@ -1,6 +1,6 @@
-namespace SdlSomething;
+namespace SdlSomething.Graphics;
 
-public sealed class World
+public sealed class RenderWorld
 {
     public Vector3 SunDirection { get; set; } = new Vector3(-.5f, -1, -.67f);
     public List<IRenderGroup> Groups { get; } = [];

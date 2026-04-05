@@ -2,8 +2,10 @@
 global using System.Numerics;
 global using System.Runtime.CompilerServices;
 global using System.Runtime.InteropServices;
+global using Flecs.NET.Core;
 global using SDL3;
-global using static SdlSomething.SdlUtils;
+global using SdlSomething.Graphics;
+global using static SdlSomething.Graphics.SdlUtils;
 using SdlSomething;
 
 if (!SDL.Init(SDL.InitFlags.Video))

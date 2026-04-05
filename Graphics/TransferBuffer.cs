@@ -1,4 +1,4 @@
-namespace SdlSomething;
+namespace SdlSomething.Graphics;
 
 public static class GpuTransferBuffer
 {
