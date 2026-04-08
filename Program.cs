@@ -7,8 +7,6 @@ global using SdlSomething.Graphics;
 global using static SdlSomething.Graphics.SdlUtils;
 using SdlSomething;
 
-new SdlSomething.TowerDefence.Main();
-return;
 
 if (!SDL.Init(SDL.InitFlags.Video))
 {
@@ -24,7 +22,8 @@ var depthStencilFormat = GetStencilFormat(device);
 
 var renderer = new Renderer(window, device);
 
-var game = new SdlSomething.TowerDefence.Game(renderer);
+var main = new SdlSomething.TowerDefence.Main();
+var game = new SdlSomething.TowerDefence.ViewModel(main, renderer);
 
 var nt = DateTime.Now + TimeSpan.FromSeconds(1);
 var f = 0;
@@ -57,6 +56,7 @@ while (loop)
     }
 
     game.Update();
+    game.Render();
     renderer.Render();
 }
 

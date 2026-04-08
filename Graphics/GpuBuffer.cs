@@ -64,7 +64,7 @@ public sealed class ResizableGpuBuffer<T> : IDisposable
     internal void PrepareFrame(nint commandBuffer)
     {
         if (Data.Length == 0)
-            throw new InvalidOperationException("No data");
+            return;
 
         if (Buffer.Length < Data.Length)
         {
