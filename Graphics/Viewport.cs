@@ -19,7 +19,7 @@ public abstract class Viewport
 
     public void Render(nint commandBuffer, nint colorTexture)
     {
-        var cameraMatrix = CameraMatrix * Matrix4x4.CreatePerspectiveFieldOfView(90 * (MathF.PI / 180), RealWidth / RealHeight, .01f, 100f);
+        var cameraMatrix = CameraMatrix * Matrix4x4.CreatePerspectiveFieldOfView(90 * (MathF.PI / 180), RealWidth / RealHeight, .01f, 500f);
         SDL.PushGPUVertexUniformData(commandBuffer, 0, StructureToPointer(cameraMatrix), sizeof(float) * 4 * 4);
 
         World.PrepareFrame(commandBuffer);

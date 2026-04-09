@@ -34,7 +34,7 @@ public sealed class ViewModel
         Game.Update();
 
         Frame++;
-        Renderer.MainViewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(Frame / 200f) * 5, 3, MathF.Cos(Frame / 200f) * 5), new(0, 1, 0), Vector3.UnitY);
+        Renderer.MainViewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(Frame / 200f) * 40, 30, MathF.Cos(Frame / 200f) * 40), new(0, 1, 0), Vector3.UnitY);
         // Renderer.MainViewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(500 / 200f) * 5, 3, MathF.Cos(500 / 200f) * 5), new(0, 1, 0), Vector3.UnitY);
 
         var list = new List<StandardMaterial.InstanceData>();
@@ -57,16 +57,18 @@ public sealed class ViewModel
     static void RenderFrom<T>(RenderGroup<VertexPN, StandardMaterial.InstanceData> renderGroup, EkaesSet<T> set, ref StandardMaterial.InstanceData[]? storage)
         where T : unmanaged, IPosition
     {
-        while (storage is null || storage.Length < set.Count)
-            Array.Resize(ref storage, Math.Max((storage?.Length ?? 0) * 2, 64));
+        if (storage is null || storage.Length < set.Count)
+            Array.Resize(ref storage, BytesExtensions.EnsureArrayLength(64, storage?.Length ?? 0, set.Count));
+
+        var enemyHealths = set.World.Component<EnemyHealth>();
 
         var i = 0;
         foreach (ref readonly var pos in set)
         {
             var albedo = Vector4.One;
-            if (pos.Entity.Fat(set).Has<EnemyHealth>())
+            if (enemyHealths.TryGet(pos.Entity, out var health))
             {
-                var p = pos.Entity.Fat(set).Get<EnemyHealth>().Health / 4f;
+                var p = health.Health / 4f;
                 albedo = new Vector4(1, p, p, 1);
             }
 

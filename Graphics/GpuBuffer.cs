@@ -69,7 +69,9 @@ public sealed class ResizableGpuBuffer<T> : IDisposable
         if (Buffer.Length < Data.Length)
         {
             DisposeBuffers();
-            Buffer = new GpuBuffer<T>(Device, Data.Length, Flags);
+
+            var newLen = BytesExtensions.EnsureArrayLength(64, Buffer.Length, Data.Length);
+            Buffer = new GpuBuffer<T>(Device, newLen, Flags);
             TransferBuffer = new GpuTransferBuffer<T>(Buffer);
 
             TransferBuffer.WriteAndCopy(commandBuffer, Data.Span);

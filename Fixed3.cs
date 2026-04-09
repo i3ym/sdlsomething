@@ -18,6 +18,7 @@ public readonly partial struct Fixed3
     public static Fixed3 From(float value) => new Fixed3((long) MathF.Round(value * Scale, MidpointRounding.AwayFromZero));
     public static Fixed3 From(double value) => new Fixed3((long) Math.Round(value * Scale, MidpointRounding.AwayFromZero));
 
+    public int ToInt() => (int) (RawValue / Scale);
     public float ToFloat() => (float) RawValue / Scale;
     public double ToDouble() => (double) RawValue / Scale;
 
@@ -84,7 +85,44 @@ public readonly partial struct Fixed3
     public int CompareTo(Fixed3 other) => RawValue.CompareTo(other.RawValue);
 
     public static int Sign(Fixed3 x) => Math.Sign(x.RawValue);
+    public static Fixed3 Sqrt(Fixed3 value)
+    {
+        if (value.RawValue < 0) throw new ArgumentOutOfRangeException();
+        if (value.RawValue == 0) return Zero;
 
+        var n = value.RawValue * Scale;
+        var x = n;
+        var y = 1L;
+
+        while (x > y)
+        {
+            x = (x + y) / 2;
+            y = n / x;
+        }
+        return new Fixed3(x);
+    }
+
+    public static Fixed3 VecMagnitude(Fixed3 fx, Fixed3 fy)
+    {
+        var x = (double) fx.RawValue / Fixed3.Scale;
+        var y = (double) fy.RawValue / Fixed3.Scale;
+        var mag = Math.Sqrt(x * x + y * y);
+
+        return From(mag);
+    }
+    public static void VecNormalize(ref Fixed3 fx, ref Fixed3 fy)
+    {
+        var mag = VecMagnitude(fx, fy);
+
+        if (mag == Fixed3.Zero)
+        {
+            fx = fy = Zero;
+            return;
+        }
+
+        fx /= mag;
+        fy /= mag;
+    }
     public static Fixed3 Abs(Fixed3 value) => new(Math.Abs(value.RawValue));
     public static bool IsCanonical(Fixed3 value) => true;
     public static bool IsComplexNumber(Fixed3 value) => false;

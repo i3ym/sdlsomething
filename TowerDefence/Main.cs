@@ -31,7 +31,7 @@ public sealed class Main
     public void Update()
     {
         Frame++;
-        if (Frame % 10 == 0)
+        if (Frame % 1 == 0)
             enemiesSpawn();
         if (Frame % 5 == 0)
             enemiesMove();
@@ -42,7 +42,7 @@ public sealed class Main
         void enemiesSpawn()
         {
             var angle = Random.Shared.NextDouble() * Math.PI * 2;
-            var pos = new EnemyPosition(Fixed3.From(Math.Cos(angle)) * 20, Fixed3.From(Math.Sin(angle)) * 20);
+            var pos = new EnemyPosition(Fixed3.From(Math.Cos(angle)) * 100, Fixed3.From(Math.Sin(angle)) * 100);
 
             World.Entity()
                 .Set(new EnemyHealth(1, 0, 0))
@@ -74,10 +74,11 @@ public sealed class Main
 
                 var dx = c.X - enemyPos.X;
                 var dy = c.Y - enemyPos.Y;
-                var max = Fixed3.Abs( Fixed3.MaxMagnitude(dx, dy));
 
-                var cx = dx / max;
-                var cy = dy / max;
+                var cx = dx;
+                var cy = dy;
+                Fixed3.VecNormalize(ref cx, ref cy);
+
                 var mult = Fixed3.From(.1f);
                 enemyPos = new(enemyPos.X + cx * mult, enemyPos.Y + cy * mult);
             }
@@ -119,13 +120,8 @@ public sealed class Main
         ref var health = ref entity.Get<EnemyHealth>();
         health = health with { Health = health.Health - 1 };
 
-        Console.WriteLine($"damaged {entity} by {amount}");
-
         if (health.Health <= 0)
-        {
-            Console.WriteLine($"is dead");
             entity.Destroy();
-        }
     }
 }
 
@@ -427,15 +423,15 @@ public sealed class EkaesSet<T> : IEkaesSet
     void EnsureSparseCapacity(int length)
     {
         var startingLength = Sparse.Length;
-        while (Sparse.Length < length)
-            Array.Resize(ref Sparse, Math.Max(Sparse.Length, 256) * 2);
+        if (Sparse.Length < length)
+            Array.Resize(ref Sparse, BytesExtensions.EnsureArrayLength(256, Sparse.Length, length));
 
         Sparse.AsSpan(startingLength).Fill(DefaultValue);
     }
     void EnsureDenseCapacity(int length)
     {
-        while (Dense.Length < length)
-            Array.Resize(ref Dense, Math.Max(Dense.Length, 64) * 2);
+        if (Dense.Length < length)
+            Array.Resize(ref Dense, BytesExtensions.EnsureArrayLength(64, Dense.Length, length));
     }
 
     public ref T Get(Entity entity)
@@ -444,6 +440,18 @@ public sealed class EkaesSet<T> : IEkaesSet
         return ref Dense[realId].Value;
     }
     public bool Has(Entity entity) => Sparse[entity.Id] != DefaultValue;
+    public bool TryGet(Entity entity, [MaybeNullWhen(false)] out T value)
+    {
+        var realId = Sparse[entity.Id];
+        if (realId == DefaultValue)
+        {
+            value = default;
+            return false;
+        }
+
+        value = Dense[realId].Value;
+        return false;
+    }
 
     public void Set(Entity entity, T value) => Set(entity, ref value);
     public void Set(Entity entity, ref T value)
@@ -464,6 +472,8 @@ public sealed class EkaesSet<T> : IEkaesSet
     }
     public void Remove(Entity entity)
     {
+        if (entity.Id >= Sparse.Length) return;
+
         var realId = Sparse[entity.Id];
         if (realId == DefaultValue) return;
 
@@ -726,8 +736,8 @@ struct BlockAllocator
         public Span<byte> Slice(nint start, int length)
         {
             var end = start + length;
-            while (end > Length)
-                Realloc(Length * 2);
+            if (Length < end)
+                Realloc(BytesExtensions.EnsureArrayLength(64, Length, end));
 
             return MemoryMarshal.CreateSpan(ref Unsafe.AddByteOffset(ref Unsafe.AsRef<byte>(Data), start), length);
         }

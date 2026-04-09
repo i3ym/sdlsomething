@@ -2,6 +2,8 @@ namespace SdlSomething.Graphics;
 
 public interface IRenderGroup : IDisposable
 {
+    int InstancesCount { get; }
+
     void PrepareFrame(nint commandBuffer);
     void BeginFrame(nint renderPass);
     void GetBindings(out SDL.GPUBufferBinding vertices, out SDL.GPUBufferBinding indices, out SDL.GPUBufferBinding instances, out uint indicesCount, out uint instanceCount);
@@ -10,6 +12,7 @@ public sealed class RenderGroup<TVertex, TInstance> : IRenderGroup
     where TVertex : unmanaged
     where TInstance : unmanaged
 {
+    public int InstancesCount => InstanceData.Length;
     readonly Mesh<TVertex> Mesh;
     readonly Material<TVertex> Material;
     readonly ResizableGpuBuffer<TInstance> InstanceData;

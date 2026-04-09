@@ -30,10 +30,16 @@ public sealed class Renderer
 
     public void Render()
     {
+        var unused = 0L;
+        Render(ref unused);
+    }
+    public void Render(ref long startTime)
+    {
         Frame++;
         var commandBuffer = SDL.AcquireGPUCommandBuffer(Device.Handle);
 
         SDL.WaitAndAcquireGPUSwapchainTexture(commandBuffer, Window.Handle, out var swapchainTexture, out var w, out var h);
+        startTime = Stopwatch.GetTimestamp();
         WindowWidth = w;
         WindowHeight = h;
 

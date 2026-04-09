@@ -41,7 +41,8 @@ public readonly struct GpuTransferBuffer<T> : IDisposable
         SDL.UnmapGPUTransferBuffer(Device.Handle, Handle);
     }
 
-    public void CopyToBuffer(nint commandBuffer)
+    public void CopyToBuffer(nint commandBuffer) => CopyToBuffer(commandBuffer, Buffer.BytesSize);
+    public void CopyToBuffer(nint commandBuffer, uint bytesSize)
     {
         var copyPass = SDL.BeginGPUCopyPass(commandBuffer);
 
@@ -53,7 +54,7 @@ public readonly struct GpuTransferBuffer<T> : IDisposable
         var region = new SDL.GPUBufferRegion()
         {
             Buffer = Buffer.Handle,
-            Size = Buffer.BytesSize,
+            Size = bytesSize,
             Offset = 0,
         };
 
@@ -61,10 +62,10 @@ public readonly struct GpuTransferBuffer<T> : IDisposable
         SDL.EndGPUCopyPass(copyPass);
     }
 
-    public void WriteAndCopy(nint commandBuffer, ReadOnlySpan<T> data)
+    public unsafe void WriteAndCopy(nint commandBuffer, ReadOnlySpan<T> data)
     {
         Write(data);
-        CopyToBuffer(commandBuffer);
+        CopyToBuffer(commandBuffer, (uint) (data.Length * sizeof(T)));
     }
 
     public void Dispose() => SDL.ReleaseGPUTransferBuffer(Buffer.Device.Handle, Handle);
