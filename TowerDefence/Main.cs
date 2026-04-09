@@ -9,80 +9,29 @@ public sealed class Main
 
     public Main()
     {
-        World = new Ekaes(new()
-        {
-            ["towerPosition"] = typeof(TowerPosition),
-            ["enemyPosition"] = typeof(EnemyPosition),
-            ["enemyHealth"] = typeof(EnemyHealth),
-        });
+        World = new Ekaes([
+            .. EnemySystem.GetRegistrations(),
+            WorldTypeRegistration.From<TowerPosition>(),
+        ]);
 
         World.Entity()
-            .Set(new EnemyHealth(1, 0, 0))
+            .Set(new EnemyHealth(1))
             .Set(new EnemyPosition(0, 3));
         World.Entity()
-            .Set(new EnemyHealth(1, 0, 0))
+            .Set(new EnemyHealth(1))
             .Set(new EnemyPosition(0, 20));
 
         World.Entity()
             .Set(new TowerPosition(0, 0));
     }
 
-    int Frame = 0;
-    public void Update()
+    public void FixedTick(int tick)
     {
-        Frame++;
-        if (Frame % 1 == 0)
-            enemiesSpawn();
-        if (Frame % 5 == 0)
-            enemiesMove();
-        if (Frame % 1 == 0)
+        EnemySystem.FixedTick(World, tick);
+        if (tick % 1 == 0)
             towersAttack();
 
 
-        void enemiesSpawn()
-        {
-            var angle = Random.Shared.NextDouble() * Math.PI * 2;
-            var pos = new EnemyPosition(Fixed3.From(Math.Cos(angle)) * 100, Fixed3.From(Math.Sin(angle)) * 100);
-
-            World.Entity()
-                .Set(new EnemyHealth(1, 0, 0))
-                .Set(pos);
-        }
-        void enemiesMove()
-        {
-            var enemyPositions = World.Component<EnemyPosition>();
-            var towerPositions = World.Component<TowerPosition>();
-
-            foreach (ref var enemy in enemyPositions)
-            {
-                ref var enemyPos = ref enemy.Value;
-                TowerPosition? closest = null;
-                var closestDist = Fixed3.MaxValue;
-
-                foreach (ref var towerPos in towerPositions)
-                {
-                    var dist = towerPos.Value.DistanceSquared(enemyPos);
-                    if (dist < closestDist)
-                    {
-                        closest = towerPos.Value;
-                        closestDist = dist;
-                    }
-                }
-
-                if (closest is not { } c) continue;
-
-
-                var dx = c.X - enemyPos.X;
-                var dy = c.Y - enemyPos.Y;
-
-                var cx = dx;
-                var cy = dy;
-                Fixed3.VecNormalize(ref cx, ref cy);
-
-                var mult = Fixed3.From(.1f);
-                enemyPos = new(enemyPos.X + cx * mult, enemyPos.Y + cy * mult);
-            }
-        }
         void towersAttack()
         {
             var enemyPositions = World.Component<EnemyPosition>();
@@ -152,20 +101,6 @@ public readonly record struct DamagedBy(uint Amount);
 
 
 public readonly struct Enemy;
-public record struct EnemyPosition(Fixed3 X, Fixed3 Y) : IPosition;
-public record struct EnemyHealth(int Health, int Armor, int Shield)
-{
-    public void Damage(int amount)
-    {
-        if (Health < 0)
-        {
-            Health = 0;
-            return;
-        }
-
-        Health -= amount;
-    }
-}
 
 sealed class GameData
 {
@@ -362,6 +297,13 @@ public readonly record struct FatEntity(Entity Entity, Ekaes World)
 {
     public static implicit operator Entity(FatEntity entity) => entity.Entity;
 }
+
+public readonly record struct WorldTypeRegistration(string Id, Type Type)
+{
+    public static WorldTypeRegistration From<T>()
+        where T : unmanaged =>
+        new(typeof(T).Name, typeof(T));
+}
 public sealed class Ekaes
 {
     readonly FrozenDictionary<Type, string> TypeCache;
@@ -369,10 +311,10 @@ public sealed class Ekaes
     readonly Queue<int> DestroyedEntities = [];
     int MaxEntityId = 0;
 
-    public Ekaes(Dictionary<string, Type> sets)
+    public Ekaes(IReadOnlyCollection<WorldTypeRegistration> sets)
     {
-        TypeCache = sets.ToFrozenDictionary(c => c.Value, c => c.Key);
-        Components = [.. sets.Select(c => (c.Key, (IEkaesSet) Activator.CreateInstance(typeof(EkaesSet<>).MakeGenericType(c.Value), [this])!))];
+        TypeCache = sets.ToFrozenDictionary(c => c.Type, c => c.Id);
+        Components = [.. sets.Select(c => (c.Id, (IEkaesSet) Activator.CreateInstance(typeof(EkaesSet<>).MakeGenericType(c.Type), [this])!))];
     }
 
     public FatEntity Entity()

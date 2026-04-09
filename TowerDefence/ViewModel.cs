@@ -28,13 +28,15 @@ public sealed class ViewModel
 
     }
 
-    int Frame = 0;
+    long LastFrameTime;
     public void Update()
     {
-        Game.Update();
+        var now = Stopwatch.GetTimestamp();
+        if (LastFrameTime == 0) ProcessGameTick(0);
+        else ProcessGameTick((now - LastFrameTime) / (float) Stopwatch.Frequency);
+        LastFrameTime = now;
 
-        Frame++;
-        Renderer.MainViewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(Frame / 200f) * 40, 30, MathF.Cos(Frame / 200f) * 40), new(0, 1, 0), Vector3.UnitY);
+        Renderer.MainViewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(Tick / 200f) * 40, 30, MathF.Cos(Tick / 200f) * 40), new(0, 1, 0), Vector3.UnitY);
         // Renderer.MainViewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(500 / 200f) * 5, 3, MathF.Cos(500 / 200f) * 5), new(0, 1, 0), Vector3.UnitY);
 
         var list = new List<StandardMaterial.InstanceData>();
@@ -43,6 +45,35 @@ public sealed class ViewModel
 
         Cubes.SetRange([.. list]);
     }
+
+    float TargetFixedDt = 1 / 60f;
+    float TimeDilation = 1;
+    float FixedAccumulator = 0;
+    int Tick = 0;
+
+    void ProcessGameTick(float dt)
+    {
+        // systemExecutor.World.Set(new FixedGameTime());
+        // systemExecutor.World.Set(new FixedInterpolationAlpha(0));
+
+        var dtime = dt * TimeDilation;
+        FixedAccumulator += dtime;
+
+        var fixedDt = TargetFixedDt;
+        while (FixedAccumulator >= fixedDt)
+        {
+            Tick++;
+            // systemExecutor.World.Set(new FixedGameTime(fixedDt, ++Tick));
+            // systemExecutor.RunFixed();
+            Game.FixedTick(Tick);
+
+            FixedAccumulator -= fixedDt;
+        }
+
+        // var alpha = fixedDt <= 0 ? 0 : Math.Clamp(FixedAccumulator / fixedDt, 0, 1);
+        // systemExecutor.World.Set(new FixedInterpolationAlpha(alpha));
+    }
+
     public void Render()
     {
         RenderFrom<TowerPosition>(Cubes, Game.World, ref Towers);
