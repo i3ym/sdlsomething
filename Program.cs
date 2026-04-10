@@ -7,7 +7,11 @@ global using System.Runtime.InteropServices;
 global using SDL3;
 global using SdlSomething.Graphics;
 global using static SdlSomething.Graphics.SdlUtils;
+using SdlSomething.TowerDefence;
 
+
+BlockAllocator.Test();
+return;
 
 if (!SDL.Init(SDL.InitFlags.Video))
 {

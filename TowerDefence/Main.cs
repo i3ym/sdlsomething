@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Drawing;
 using System.Text;
 
 namespace SdlSomething.TowerDefence;
@@ -101,192 +102,6 @@ public readonly record struct DamagedBy(uint Amount);
 
 
 public readonly struct Enemy;
-
-sealed class GameData
-{
-    const int BlockSize = 10 * 1024;
-
-    [Obsolete("DANGEROUS WHEN REALLOCATING")]
-    Span<byte> Span => Array.Span;
-    NativeArr Array;
-
-    ref Header HeaderData => ref Ref<Header>(Span);
-    readonly int HeaderEnd;
-
-    Span<ComponentHeader> ComponentHeaders => Span[HeaderEnd..ComponentHeadersEnd].Cast<ComponentHeader>();
-    readonly int ComponentHeadersEnd;
-
-    readonly int DataStart;
-
-    public unsafe GameData(Dictionary<string, Action> systems)
-    {
-        Array = NativeArr.Alloc(16 * 1024 * 1024);
-        HeaderEnd = sizeof(Header);
-        ComponentHeadersEnd = HeaderEnd + systems.Count * sizeof(ComponentHeader);
-        DataStart = ComponentHeadersEnd;
-
-        HeaderData.Version = 1;
-        HeaderData.ComponentsCount = systems.Count;
-        HeaderData.LastAllocatedIndex = DataStart;
-
-        var i = -1;
-        foreach (var (name, ctor) in systems)
-        {
-            i++;
-
-            ref var ch = ref ComponentHeaders[i];
-            Encoding.UTF8.GetBytes(name, ch.Name.Span);
-        }
-    }
-
-    static ref T Ref<T>(Span<byte> span)
-        where T : unmanaged =>
-        ref Unsafe.As<byte, T>(ref MemoryMarshal.GetReference(span));
-
-    public ForeignArray<T> GetComponent<T>(string system)
-        where T : unmanaged
-    {
-        foreach (ref var header in ComponentHeaders)
-            if (Encoding.UTF8.GetString(header.Name.Span.TrimEnd((byte) '\0')) == system)
-                return new ForeignArray<T>(this, ref Unsafe.As<ComponentHeader, byte>(ref header));
-
-        throw new KeyNotFoundException();
-    }
-    Span<T> ClaimBlock<T>(ref String64 system)
-        where T : unmanaged
-    {
-        foreach (ref var header in ComponentHeaders)
-        {
-            if (header.Name.Span.SequenceEqual(system.Span))
-            {
-                var end = HeaderData.LastAllocatedIndex + BlockSize;
-                var block = Span[HeaderData.LastAllocatedIndex..end];
-                header.Buffers[header.BufferCount++] = HeaderData.LastAllocatedIndex;
-                HeaderData.LastAllocatedIndex = end;
-
-                return block.Cast<T>();
-            }
-        }
-
-        throw new KeyNotFoundException();
-    }
-    public Span<T> ClaimBlock<T>(string system)
-        where T : unmanaged
-    {
-        foreach (ref var header in ComponentHeaders)
-        {
-            if (Encoding.UTF8.GetString(header.Name.Span.TrimEnd((byte) '\0')) == system)
-            {
-                var end = HeaderData.LastAllocatedIndex + BlockSize;
-                var block = Span[HeaderData.LastAllocatedIndex..end];
-                header.Buffers[header.BufferCount++] = HeaderData.LastAllocatedIndex;
-                HeaderData.LastAllocatedIndex = end;
-
-                return block.Cast<T>();
-            }
-        }
-
-        throw new KeyNotFoundException();
-    }
-
-
-    struct Header
-    {
-        public int Version;
-        public int LastAllocatedIndex;
-        public int ComponentsCount;
-        int _Align1;
-    }
-    struct ComponentHeader
-    {
-        [UnscopedRef]
-        public ref int BufferCount => ref Unsafe.As<Bytes64, int>(ref CountBuffersBacking);
-        public Span<int> Buffers => MemoryMarshal.Cast<Bytes64, int>(MemoryMarshal.CreateSpan(ref CountBuffersBacking, 1))[1..];
-
-        public String64 Name;
-        Bytes64 CountBuffersBacking;
-    }
-    public readonly ref struct ForeignArray<T>
-        where T : unmanaged
-    {
-        readonly GameData GameData;
-        readonly Span<byte> FullData => GameData.Span;
-        readonly ref ComponentHeader Header;
-
-        internal ForeignArray(GameData gameData, ref byte header)
-        {
-            GameData = gameData;
-            Header = ref Unsafe.As<byte, ComponentHeader>(ref header);
-        }
-
-        public Span<T> SubSpanFor(int spanIndex)
-        {
-            while (spanIndex >= Header.BufferCount)
-                GameData.ClaimBlock<T>(ref Header.Name);
-
-            return FullData.Slice(Header.Buffers[spanIndex], BlockSize).Cast<T>();
-        }
-
-        public ref T this[int index] => ref SubSpanFor(index / BlockSize)[index % BlockSize];
-
-
-        public Enumerator GetEnumerator() => new(this);
-
-
-        public ref struct Enumerator
-        {
-            readonly ForeignArray<T> Component;
-            int SpanIndex = 0;
-            int SpanPosition = -1;
-            readonly Span<T> CurrentSpan => Component.SubSpanFor(SpanIndex);
-            public readonly ref T Current => ref CurrentSpan[SpanPosition];
-
-            public Enumerator(ForeignArray<T> component) => Component = component;
-
-            public bool MoveNext()
-            {
-                SpanPosition++;
-                if (SpanPosition >= CurrentSpan.Length)
-                {
-                    SpanPosition = 0;
-                    SpanIndex++;
-                }
-
-                if (SpanIndex >= Component.Header.BufferCount)
-                    return false;
-
-                return true;
-            }
-        }
-    }
-
-    struct String64
-    {
-        public Span<byte> Span => MemoryMarshal.CreateSpan(ref Chars, 1).Bytes();
-        Bytes64 Chars;
-    }
-
-    readonly struct Bytes32 { readonly Int128 A, B; }
-    readonly struct Bytes64 { readonly Bytes32 A, B; }
-    unsafe struct NativeArr
-    {
-        public static NativeArr Alloc(int length)
-        {
-            var ptr = NativeMemory.AlignedAlloc((nuint) length, (nuint) sizeof(nint));
-            return new() { Data = ptr, Length = length };
-        }
-
-        public readonly Span<byte> Span => new Span<byte>(Data, Length);
-        void* Data;
-        int Length;
-
-        public void Realloc(int length)
-        {
-            Data = NativeMemory.AlignedRealloc(Data, (nuint) length, (nuint) sizeof(nint));
-            Length = length;
-        }
-    }
-}
 
 public readonly record struct Entity(int Id)
 {
@@ -566,122 +381,319 @@ public static class SpanExtensions
 }
 
 
-// class GData
-// {
-//     public static unsafe BlockAllocator New()
-//     {
-//         // getblockat 0
-
-
-//         return allocator;
-//     }
-//     BlockAllocator Allocator;
-
-//     ref Header HeaderData => ref Ref<Header>(Allocator);
-
-//     public GData(BlockAllocator allocator)
-//     {
-//         Allocator = allocator;
-//     }
-
-
-//     static ref T Ref<T>(Span<byte> span)
-//         where T : unmanaged =>
-//         ref Unsafe.As<byte, T>(ref MemoryMarshal.GetReference(span));
-
-
-//     struct Header
-//     {
-//         public uint Version { get; init; }
-//         public uint PageSize { get; init; }
-//         public ulong NextFreeOffset;
-//     }
-// }
-struct BlockAllocator
+readonly struct BlockAllocator : IDisposable
 {
-    public static unsafe BlockAllocator New()
+    public static void Test()
     {
-        var allocator = new BlockAllocator(NativeArr.Alloc(1 * 1024 * 1024))
-        {
-            HeaderData = new()
-            {
-                PageSize = 1024,
-                NextFreeOffset = sizeof(Header),
-            },
-        };
+        var allocator = New();
+        ;
 
+        // var block = allocator.GetOrClaimBlock("asus", 1024);
+
+        var arr = new BlockAllocatorArrayDense<int>(allocator, "sus", 3);
+        arr.Test();
+
+        foreach (ref var item in arr)
+        {
+            Console.WriteLine($"item: {item}");
+        }
+        ;
+    }
+    public static BlockAllocator New()
+    {
+        var allocator = new BlockAllocator(NativeArr.Allocate(1024 * 1024));
+        allocator.Header.LastAllocated = allocator.DataStart;
         return allocator;
     }
 
-    NativeArr Array;
-    readonly unsafe ref Header HeaderData => ref Ref<Header>(Array.Slice(0, sizeof(Header)));
+    readonly Dictionary<string, BlockHeaderLocation> BlockCache = [];
+
+    readonly NativeArr Array;
+    readonly unsafe int FullHeaderSize = sizeof(FullHeader);
+    readonly ref FullHeader Header => ref Ref<FullHeader>(Array.Slice(0, FullHeaderSize));
+    readonly unsafe int BlockHeaderSize = 1024 * sizeof(BlockHeader);
+    readonly Span<BlockHeader> BlockHeadersSpan => Array.Slice(FullHeaderSize, BlockHeaderSize).Cast<BlockHeader>();
+    readonly int DataStart => FullHeaderSize + BlockHeaderSize;
 
     public BlockAllocator(NativeArr array) => Array = array;
 
-    [UnscopedRef]
-    public BSpan NewBlock()
+    public unsafe long ClaimUnnamed<T>(int count)
+        where T : unmanaged =>
+        ClaimUnnamed(count * sizeof(T));
+    public long ClaimUnnamed(int size)
     {
-        var start = HeaderData.NextFreeOffset;
-        var end = start + HeaderData.PageSize;
-        HeaderData.NextFreeOffset = end;
-
-        return GetBlockAt(start);
+        var start = Header.LastAllocated;
+        Header.LastAllocated += size;
+        return start;
     }
-    [UnscopedRef]
-    public BSpan GetBlockAt(nint position) => new BSpan(ref this, position, HeaderData.PageSize);
 
+    public unsafe Span<T> GetBlock<T>(long position, int count)
+        where T : unmanaged =>
+        Array.Slice(position, count * sizeof(T)).Cast<T>();
+    public Span<byte> GetBlock(long position, int size) => Array.Slice(position, size);
+
+    public ref T GetOrClaimRef<T>(string id)
+        where T : unmanaged =>
+        ref GetOrClaimBlock<T>(id, 1)[0];
+
+    public unsafe Span<T> GetOrClaimBlock<T>(string id, int count)
+        where T : unmanaged =>
+        GetOrClaimBlock(id, count * sizeof(T)).Cast<T>();
+    public Span<byte> GetOrClaimBlock(string id, int size)
+    {
+        if (!BlockCache.TryGetValue(id, out var location))
+        {
+            var pos = Header.LastAllocated;
+            var end = pos + size;
+            Header.LastAllocated = end;
+
+            var header = new BlockHeader()
+            {
+                Location = new() { Position = pos, Size = size },
+                Name = new String64(id),
+            };
+            BlockHeadersSpan[Header.BlockCount] = header;
+            Header.BlockCount++;
+
+            BlockCache[id] = location = header.Location;
+        }
+
+        return Array.Slice(location.Position, location.Size);
+    }
 
     static ref T Ref<T>(Span<byte> span)
         where T : unmanaged =>
         ref Unsafe.As<byte, T>(ref MemoryMarshal.GetReference(span));
 
+    public void Dispose() => Array.Dispose();
 
-    struct Header
+
+    struct FullHeader
     {
-        public int PageSize { get; init; }
-        public nint NextFreeOffset;
+        public long LastAllocated;
+        public int BlockCount;
+    }
+    struct BlockHeader
+    {
+        public String64 Name;
+        public BlockHeaderLocation Location;
+    }
+    struct BlockHeaderLocation
+    {
+        public long Position;
+        public int Size;
     }
 
-    public readonly ref struct BSpan
+    [DebuggerDisplay("{DebugString}")]
+    public struct String64
     {
-        readonly ref BlockAllocator Allocator;
-        public readonly nint Start;
+        string DebugString => Encoding.UTF8.GetString(Span.TrimEnd((byte) '\0'));
+        public Span<byte> Span => MemoryMarshal.CreateSpan(ref Chars, 1).Bytes();
+        Bytes64 Chars;
+
+        public String64(string str) => Encoding.UTF8.GetBytes(str, Span);
+    }
+    readonly struct Bytes32 { readonly Int128 A, B; }
+    readonly struct Bytes64 { readonly Bytes32 A, B; }
+
+    public readonly struct BSpan
+    {
+        readonly BlockAllocator Allocator;
+        public readonly long Start;
         public readonly int Length;
 
-        public BSpan(ref BlockAllocator allocator, nint start, int length)
+        public BSpan(BlockAllocator allocator, long start, int length)
         {
-            Allocator = ref allocator;
+            Allocator = allocator;
             Start = start;
             Length = length;
         }
 
         public Span<byte> AsSpan() => Allocator.Array.Slice(Start, Length);
     }
-    public unsafe struct NativeArr
+
+    public readonly unsafe struct NativeArr : IDisposable
     {
-        public static NativeArr Alloc(nint length)
+        public static NativeArr Allocate(long size)
         {
-            var ptr = NativeMemory.AlignedAlloc((nuint) length, (nuint) sizeof(nint));
-            return new() { Data = ptr, Length = length };
+            return new NativeArr()
+            {
+                DataStartPointerValue = (nint) NativeMemory.AllocZeroed((nuint) size),
+                Length = size,
+            };
         }
 
+        readonly nint PointerToDataPointer;
 
-        void* Data;
-        nint Length;
+        readonly ref nint DataStartPointerValue => ref Ref<nint>(new Span<byte>((void*) PointerToDataPointer, sizeof(nint)));
+        readonly ref long Length => ref Ref<long>(new Span<byte>((void*) DataStartPointerValue, sizeof(long)));
+        readonly void* Data => (byte*) DataStartPointerValue + sizeof(long);
 
-        public void Realloc(nint length)
+        public NativeArr() => PointerToDataPointer = (nint) NativeMemory.AllocZeroed((uint) sizeof(nint));
+
+        public Span<byte> Slice(long start, int length)
         {
-            Data = NativeMemory.AlignedRealloc(Data, (nuint) length, (nuint) sizeof(nint));
-            Length = length;
-        }
-
-        public Span<byte> Slice(nint start, int length)
-        {
-            var end = start + length;
+            var end = start + length + sizeof(long);
             if (Length < end)
-                Realloc(BytesExtensions.EnsureArrayLength(64, Length, end));
+            {
+                length = checked((int) BytesExtensions.EnsureArrayLength(1024 * 1024, Length, end));
+                var prevLen = Length;
+                DataStartPointerValue = (nint) NativeMemory.Realloc((void*) DataStartPointerValue, (nuint) length);
 
-            return MemoryMarshal.CreateSpan(ref Unsafe.AddByteOffset(ref Unsafe.AsRef<byte>(Data), start), length);
+                NativeMemory.Clear((byte*) DataStartPointerValue + prevLen, (nuint) (length - prevLen));
+                Length = length;
+            }
+
+            return MemoryMarshal.CreateSpan(ref Unsafe.AddByteOffset(ref Unsafe.AsRef<byte>(Data), (nint) start), length);
         }
+
+        public void Dispose()
+        {
+            if (DataStartPointerValue != 0)
+                NativeMemory.Free((void*) DataStartPointerValue);
+            NativeMemory.Free(Data);
+        }
+    }
+}
+readonly unsafe struct BlockAllocatorArray<T>
+    where T : unmanaged
+{
+    public void Test()
+    {
+        var fb = GetFirstBlock();
+
+        ref var f = ref GetFooterBySpan(fb);
+        f.NextBlock = unchecked((long) 0xFFFFFFFFFFFFFFFF);
+
+        var items = BlockAsItems(fb);
+
+        items[0] = (T) (object) 1;
+        items[1] = (T) (object) 3;
+        items[2] = (T) (object) 2;
+
+        ;
+    }
+
+    readonly BlockAllocator Allocator;
+    readonly string Id;
+    readonly int BlockItemCount;
+    readonly int BlockSizeBytes;
+    readonly int BlockSizeBytesWithFooter;
+    readonly ref Header HeaderData => ref Allocator.GetOrClaimRef<Header>(Id);
+
+    public BlockAllocatorArray(BlockAllocator allocator, string id, int blockItemCount)
+    {
+        Allocator = allocator;
+        Id = id;
+
+        BlockItemCount = blockItemCount;
+        BlockSizeBytes = blockItemCount * sizeof(T);
+        BlockSizeBytesWithFooter = BlockSizeBytes + sizeof(Footer);
+    }
+
+    Span<byte> GetFirstBlock()
+    {
+        ref var pos = ref HeaderData.FirstBlockPos;
+        if (pos == 0)
+            pos = Allocator.ClaimUnnamed(BlockSizeBytesWithFooter);
+
+        return Allocator.GetBlock(pos, BlockSizeBytesWithFooter);
+    }
+    Span<T> BlockAsItems(Span<byte> block) => block[..BlockSizeBytes].Cast<T>();
+
+    ref Footer GetFooterBySpan(Span<byte> span) => ref Ref<Footer>(span[BlockSizeBytes..]);
+
+    static ref TRef Ref<TRef>(Span<byte> span)
+        where TRef : unmanaged =>
+        ref Unsafe.As<byte, TRef>(ref MemoryMarshal.GetReference(span));
+
+    public Enumerator GetEnumerator() => new(this);
+
+
+    struct Header
+    {
+        public long FirstBlockPos;
+        // public int ItemCount;
+    }
+    struct Footer
+    {
+        public long NextBlock;
+    }
+
+    public ref struct Enumerator
+    {
+        public readonly ref T Current => ref CurrentSpan.Cast<T>()[IndexInSpan];
+        readonly BlockAllocatorArray<T> Allocator;
+        Span<byte> CurrentSpan;
+        int CountLeft;
+        int IndexInSpan;
+
+        public Enumerator(BlockAllocatorArray<T> allocator)
+        {
+            Allocator = allocator;
+
+            CurrentSpan = allocator.GetFirstBlock();
+            // CountLeft = allocator.HeaderData.ItemCount;
+        }
+
+        public bool MoveNext()
+        {
+            if (CountLeft == 0) return false;
+
+            CountLeft--;
+            IndexInSpan++;
+            if (IndexInSpan == Allocator.BlockItemCount)
+            {
+                var next = Allocator.GetFooterBySpan(CurrentSpan).NextBlock;
+                CurrentSpan = Allocator.Allocator.GetBlock(next, Allocator.BlockSizeBytesWithFooter);
+
+                IndexInSpan = 0;
+            }
+
+            return true;
+        }
+    }
+}
+
+readonly unsafe struct BlockAllocatorArrayDense<T>
+    where T : unmanaged
+{
+    public void Test()
+    {
+        var items = Items;
+
+        items[0] = (T) (object) 1;
+        items[1] = (T) (object) 3;
+        items[2] = (T) (object) 2;
+
+        ;
+    }
+
+    readonly BlockAllocator Allocator;
+    readonly string Id;
+    readonly ref int ItemCount => ref HeaderData.ItemCount;
+    readonly Span<byte> RawSpan => Allocator.GetOrClaimBlock(Id, sizeof(Header) + (ItemCount * sizeof(T)));
+    readonly ref Header HeaderData => ref Ref<Header>(Allocator.GetOrClaimBlock(Id, sizeof(Header)));
+    public readonly Span<T> Items => RawSpan[sizeof(Header)..].Cast<T>();
+
+    public BlockAllocatorArrayDense(BlockAllocator allocator, string id, int initialCount)
+    {
+        Allocator = allocator;
+        Id = id;
+
+        allocator.GetOrClaimBlock(Id, sizeof(Header) + initialCount);
+        HeaderData.ItemCount = initialCount;
+    }
+
+    static ref TRef Ref<TRef>(Span<byte> span)
+        where TRef : unmanaged =>
+        ref Unsafe.As<byte, TRef>(ref MemoryMarshal.GetReference(span));
+
+    public Span<T>.Enumerator GetEnumerator() => Items.GetEnumerator();
+
+
+    struct Header
+    {
+        public int ItemCount;
     }
 }
