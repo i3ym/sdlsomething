@@ -4,7 +4,7 @@ public interface IEkaesSet
 {
     void Remove(Entity entity);
 }
-public sealed class EkaesSet<T> : IEkaesSet
+public sealed partial class EkaesSet<T> : IEkaesSet
     where T : unmanaged
 {
     const int DefaultValue = -1;
@@ -52,6 +52,15 @@ public sealed class EkaesSet<T> : IEkaesSet
         }
 
         value = Dense[realId].Value;
+        return false;
+    }
+    public bool TryGetRef(Entity entity, [MaybeNullWhen(false)] ref T value)
+    {
+        var realId = Sparse[entity.Id];
+        if (realId == DefaultValue)
+            return false;
+
+        value = ref Dense[realId].Value;
         return false;
     }
 
@@ -149,7 +158,7 @@ public sealed class EkaesSet<T> : IEkaesSet
         }
     }
 }
-public static class EkasSetExtensions
+public static partial class EkasSetExtensions
 {
     public static Entity Set<T>(this Entity entity, EkaesSet<T> set, T value)
         where T : unmanaged =>
@@ -204,4 +213,60 @@ public static class EkasSetExtensions
     }
 
     public static void Destroy(this FatEntity entity) => entity.World.Destroy(entity);
+}
+
+public static partial class EkasSetExtensions
+{
+    public static ZipEnumerator<T1, T2> Zip<T1, T2>(this EkaesSet<T1> t1, EkaesSet<T2> t2)
+        where T1 : unmanaged
+        where T2 : unmanaged =>
+        new(t1, t2);
+
+    public ref struct ZipEnumerator<T1, T2>
+        where T1 : unmanaged
+        where T2 : unmanaged
+    {
+        public Output Current => new(Current1.Entity, ref Current1.Value, ref Current2);
+        public ref EkaesSet<T1>.WithHeader Current1;
+        public ref T2 Current2;
+
+        Span<EkaesSet<T1>.WithHeader>.Enumerator Enumerator1;
+        readonly EkaesSet<T2> Set2;
+
+        public ZipEnumerator(EkaesSet<T1> t1, EkaesSet<T2> t2)
+        {
+            Enumerator1 = t1.GetEnumerator();
+            Set2 = t2;
+        }
+
+        public bool MoveNext()
+        {
+            if (!Enumerator1.MoveNext())
+                return false;
+
+            Current1 = ref Enumerator1.Current;
+            if (!Set2.TryGetRef(Current1.Entity, ref Current2))
+                return false;
+
+            return true;
+        }
+
+        [UnscopedRef]
+        public ref ZipEnumerator<T1, T2> GetEnumerator() => ref this;
+
+
+        public readonly ref struct Output
+        {
+            public readonly Entity Entity;
+            public readonly ref T1 Current1;
+            public readonly ref T2 Current2;
+
+            public Output(Entity entity, ref T1 current1, ref T2 current2)
+            {
+                Entity = entity;
+                Current1 = ref current1;
+                Current2 = ref current2;
+            }
+        }
+    }
 }

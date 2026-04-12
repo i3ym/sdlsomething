@@ -41,7 +41,7 @@ public sealed class ViewModel
 
         var list = new List<StandardMaterial.InstanceData>();
         foreach (ref readonly var pos in Game.World.Component<TowerPosition>())
-            list.Add(new StandardMaterial.InstanceData(Matrix4x4.CreateTranslation(pos.Value.X.ToFloat(), 0, pos.Value.Y.ToFloat()), Vector4.One));
+            list.Add(new StandardMaterial.InstanceData(Matrix4x4.CreateTranslation(pos.Value.Position.X.ToFloat(), 0, pos.Value.Position.Y.ToFloat()), Vector4.One));
 
         Cubes.SetRange([.. list]);
     }
@@ -103,7 +103,7 @@ public sealed class ViewModel
                 albedo = new Vector4(1, p, p, 1);
             }
 
-            storage[i++] = new StandardMaterial.InstanceData(Matrix4x4.CreateTranslation(pos.Value.X.ToFloat(), 0, pos.Value.Y.ToFloat()), albedo);
+            storage[i++] = new StandardMaterial.InstanceData(Matrix4x4.CreateTranslation(pos.Value.Position.X.ToFloat(), 0, pos.Value.Position.Y.ToFloat()), albedo);
         }
 
         renderGroup.SetRange(storage.AsMemory(0, set.Count));

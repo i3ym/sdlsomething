@@ -8,9 +8,9 @@ public readonly partial struct Fixed3
     public static Fixed3 Zero => default;
 
 
-    const long Scale = 1000;
-    const long HalfScale = Scale / 2;
-    readonly long RawValue;
+    internal const long Scale = 1000;
+    internal const long HalfScale = Scale / 2;
+    internal readonly long RawValue;
 
     public Fixed3(long rawValue) => RawValue = rawValue;
 
@@ -70,7 +70,6 @@ public readonly partial struct Fixed3
 
     public static implicit operator Fixed3(int value) => From(value);
 }
-
 public readonly partial struct Fixed3
     : INumber<Fixed3>
 {
@@ -102,27 +101,6 @@ public readonly partial struct Fixed3
         return new Fixed3(x);
     }
 
-    public static Fixed3 VecMagnitude(Fixed3 fx, Fixed3 fy)
-    {
-        var x = (double) fx.RawValue / Fixed3.Scale;
-        var y = (double) fy.RawValue / Fixed3.Scale;
-        var mag = Math.Sqrt(x * x + y * y);
-
-        return From(mag);
-    }
-    public static void VecNormalize(ref Fixed3 fx, ref Fixed3 fy)
-    {
-        var mag = VecMagnitude(fx, fy);
-
-        if (mag == Fixed3.Zero)
-        {
-            fx = fy = Zero;
-            return;
-        }
-
-        fx /= mag;
-        fy /= mag;
-    }
     public static Fixed3 Abs(Fixed3 value) => new(Math.Abs(value.RawValue));
     public static bool IsCanonical(Fixed3 value) => true;
     public static bool IsComplexNumber(Fixed3 value) => false;
@@ -225,4 +203,39 @@ public readonly partial struct Fixed3
     public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider) =>
         ToDouble().TryFormat(destination, out charsWritten, format, provider);
     public string ToString(string? format, IFormatProvider? formatProvider) => ToDouble().ToString(format, formatProvider);
+}
+
+public readonly record struct Vec2Fixed(Fixed3 X, Fixed3 Y)
+{
+    public static Vec2Fixed Zero => default;
+    public static Vec2Fixed One => new(Fixed3.One, Fixed3.One);
+
+    public Fixed3 Magnitude()
+    {
+        var x = (double) X.RawValue / Fixed3.Scale;
+        var y = (double) Y.RawValue / Fixed3.Scale;
+        var mag = Math.Sqrt(x * x + y * y);
+
+        return Fixed3.From(mag);
+    }
+    public Vec2Fixed Normalized()
+    {
+        var mag = Magnitude();
+        if (mag == Fixed3.Zero)
+            return Zero;
+
+        return new(X / mag, Y / mag);
+    }
+    public static Fixed3 DistanceSquared(Vec2Fixed left, Vec2Fixed right)
+    {
+        var deltaX = left.X - right.X;
+        var deltaY = left.Y - right.Y;
+        return (deltaX * deltaX) + (deltaY * deltaY);
+    }
+
+    public static Vec2Fixed operator +(Vec2Fixed left, Vec2Fixed right) => new(left.X + right.X, left.Y + right.Y);
+    public static Vec2Fixed operator -(Vec2Fixed left, Vec2Fixed right) => new(left.X - right.X, left.Y - right.Y);
+
+    public static Vec2Fixed operator *(Vec2Fixed vec, Fixed3 val) => new(vec.X * val, vec.Y * val);
+    public static Vec2Fixed operator /(Vec2Fixed vec, Fixed3 val) => new(vec.X / val, vec.Y / val);
 }

@@ -13,7 +13,7 @@ public record struct EnemyHealth(int Health)
         Health -= amount;
     }
 }
-public record struct EnemyPosition(Fixed3 X, Fixed3 Y) : IPosition;
+public record struct EnemyPosition(Vec2Fixed Position) : IPosition;
 
 public static class EnemySystem
 {
@@ -33,7 +33,7 @@ public static class EnemySystem
         static void enemiesSpawn(Ekaes world)
         {
             var angle = Random.Shared.NextDouble() * Math.PI * 2;
-            var pos = new EnemyPosition(Fixed3.From(Math.Cos(angle)) * 100, Fixed3.From(Math.Sin(angle)) * 100);
+            var pos = new EnemyPosition(new(Fixed3.From(Math.Cos(angle)) * 100, Fixed3.From(Math.Sin(angle)) * 100));
 
             world.Entity()
                 .Set(new EnemyHealth(1))
@@ -52,7 +52,7 @@ public static class EnemySystem
 
                 foreach (ref var towerPos in towerPositions)
                 {
-                    var dist = towerPos.Value.DistanceSquared(enemyPos);
+                    var dist = Vec2Fixed.DistanceSquared(towerPos.Value.Position, enemyPos.Position);
                     if (dist < closestDist)
                     {
                         closest = towerPos.Value;
@@ -62,16 +62,9 @@ public static class EnemySystem
 
                 if (closest is not { } c) continue;
 
-
-                var dx = c.X - enemyPos.X;
-                var dy = c.Y - enemyPos.Y;
-
-                var cx = dx;
-                var cy = dy;
-                Fixed3.VecNormalize(ref cx, ref cy);
-
+                var d = (c.Position - enemyPos.Position).Normalized();
                 var mult = Fixed3.From(.1f);
-                enemyPos = new(enemyPos.X + cx * mult, enemyPos.Y + cy * mult);
+                enemyPos = new(enemyPos.Position + d * mult);
             }
         }
     }

@@ -8,23 +8,25 @@ public sealed class Main
     {
         World = new Ekaes([
             .. EnemySystem.GetRegistrations(),
+            .. EnemyFieldMovementSystem.GetRegistrations(),
             WorldTypeRegistration.From<TowerPosition>(),
         ]);
 
         World.Entity()
             .Set(new EnemyHealth(1))
-            .Set(new EnemyPosition(0, 3));
+            .Set(new EnemyPosition(new(0, 3)));
         World.Entity()
             .Set(new EnemyHealth(1))
-            .Set(new EnemyPosition(0, 20));
+            .Set(new EnemyPosition(new(0, 20)));
 
         World.Entity()
-            .Set(new TowerPosition(0, 0));
+            .Set(new TowerPosition(new(0, 0)));
     }
 
     public void FixedTick(int tick)
     {
         EnemySystem.FixedTick(World, tick);
+        EnemyFieldMovementSystem.FixedTick(World, tick);
         if (tick % 1 == 0)
             towersAttack();
 
@@ -44,7 +46,7 @@ public sealed class Main
 
                 foreach (ref var enemyPos in enemyPositions)
                 {
-                    var dist = enemyPos.Value.DistanceSquared(towerPos);
+                    var dist = Vec2Fixed.DistanceSquared(enemyPos.Value.Position, towerPos.Position);
                     if (dist > minDist) continue;
                     if (dist < closestDist)
                     {
@@ -73,23 +75,10 @@ public sealed class Main
 
 public interface IPosition
 {
-    Fixed3 X { get; }
-    Fixed3 Y { get; }
+    Vec2Fixed Position { get; }
 }
-public static class PositionExtensions
-{
-    public static Fixed3 DistanceSquared<T1, T2>(this T1 left, T2 right)
-        where T1 : unmanaged, IPosition
-        where T2 : unmanaged, IPosition
-    {
-        var deltaX = left.X - right.X;
-        var deltaY = left.Y - right.Y;
-        return (deltaX * deltaX) + (deltaY * deltaY);
-    }
-}
-
 public readonly record struct Tower;
-public readonly record struct TowerPosition(Fixed3 X, Fixed3 Y) : IPosition;
+public readonly record struct TowerPosition(Vec2Fixed Position) : IPosition;
 
 public readonly record struct TowerCanOperate;
 public readonly record struct TowerDelayPerOperation(uint DelayTicks);
