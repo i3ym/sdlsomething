@@ -1,10 +1,6 @@
 namespace SdlSomething.TowerDefence;
 
-public interface IEkaesSet
-{
-    void Remove(Entity entity);
-}
-public sealed partial class EkaesSet<T> : IEkaesSet
+public sealed partial class EkaesSet<T> : IOnDestroyEntity
     where T : unmanaged
 {
     const int DefaultValue = -1;
@@ -14,13 +10,7 @@ public sealed partial class EkaesSet<T> : IEkaesSet
     WithHeader[] Dense = new WithHeader[64];
     public int Count { get; private set; } = 0;
 
-    public Ekaes World { get; }
-
-    public EkaesSet(Ekaes ekaes)
-    {
-        World = ekaes;
-        Sparse.AsSpan().Fill(DefaultValue);
-    }
+    public EkaesSet() => Sparse.AsSpan().Fill(DefaultValue);
 
     void EnsureSparseCapacity(int length)
     {
@@ -41,7 +31,7 @@ public sealed partial class EkaesSet<T> : IEkaesSet
         var realId = Sparse[entity.Id];
         return ref Dense[realId].Value;
     }
-    public bool Has(Entity entity) => Sparse[entity.Id] != DefaultValue;
+    public bool Has(Entity entity) => entity.Id < Sparse.Length && Sparse[entity.Id] != DefaultValue;
     public bool TryGet(Entity entity, [MaybeNullWhen(false)] out T value)
     {
         var realId = Sparse[entity.Id];
@@ -104,48 +94,8 @@ public sealed partial class EkaesSet<T> : IEkaesSet
 
     // TODO: iterate backwards
     public Span<WithHeader>.Enumerator GetEnumerator() => Items.GetEnumerator();
-    public FEnumerable FatEnumerable() => new(this);
 
 
-    public readonly ref struct FEnumerable
-    {
-        readonly EkaesSet<T> Set;
-
-        public FEnumerable(EkaesSet<T> set) => Set = set;
-
-        public FEnumerator GetEnumerator() => new(Set);
-
-
-        public ref struct FEnumerator
-        {
-            public FatWithHeader Current
-            {
-                get
-                {
-                    ref var current = ref Set.Dense[Position];
-                    return new(current.Entity.Fat(Set.World), ref current.Value);
-                }
-            }
-            readonly EkaesSet<T> Set;
-            int Position = -1;
-
-            public FEnumerator(EkaesSet<T> set) => Set = set;
-
-            public bool MoveNext() => Position++ < Set.Count;
-        }
-
-        public ref struct FatWithHeader
-        {
-            public readonly FatEntity Entity;
-            public ref T Value;
-
-            public FatWithHeader(FatEntity entity, ref T value)
-            {
-                Entity = entity;
-                Value = ref value;
-            }
-        }
-    }
     public record struct WithHeader
     {
         public readonly Entity Entity;
@@ -160,6 +110,22 @@ public sealed partial class EkaesSet<T> : IEkaesSet
 }
 public static partial class EkasSetExtensions
 {
+    public static EkaesSet<T> Component<T>(this Ekaes world, string name)
+        where T : unmanaged
+    {
+        if (!world.TryGetStorable(name, out var storable))
+        {
+            storable = new EkaesSet<T>();
+            world.SetStorable(name, storable);
+        }
+
+        return (EkaesSet<T>) storable;
+    }
+    public static EkaesSet<T> Component<T>(this Ekaes world)
+        where T : unmanaged =>
+        world.Component<T>(typeof(T).FullName ?? typeof(T).Name);
+
+
     public static Entity Set<T>(this Entity entity, EkaesSet<T> set, T value)
         where T : unmanaged =>
         entity.Set(set, ref value);

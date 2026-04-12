@@ -6,21 +6,65 @@ public sealed class Main
 
     public Main()
     {
-        World = new Ekaes([
-            .. EnemySystem.GetRegistrations(),
-            .. EnemyFieldMovementSystem.GetRegistrations(),
-            WorldTypeRegistration.From<TowerPosition>(),
-        ]);
+        World = new Ekaes();
 
-        World.Entity()
-            .Set(new EnemyHealth(1))
-            .Set(new EnemyPosition(new(0, 3)));
-        World.Entity()
-            .Set(new EnemyHealth(1))
-            .Set(new EnemyPosition(new(0, 20)));
+        World.Singleton<Field>()
+            .Paths.AddRange([
+                // [new Vec2Fixed(7, 5), new Vec2Fixed(0, 5), new Vec2Fixed(0, 0)],
+                randomPath(5, 4)
+            ]);
+
+        // World.Entity()
+        //     .Set(new EnemyHealth(1))
+        //     // .Set(new EnemyPosition(new(0, 3)));
+        //     .Set(new EnemyOnField(0, 0, 0));
+        // World.Entity()
+        //     .Set(new EnemyHealth(1))
+        //     // .Set(new EnemyPosition(new(0, 20)));
+        //     .Set(new EnemyOnField());
 
         World.Entity()
             .Set(new TowerPosition(new(0, 0)));
+
+
+        static ImmutableArray<Vec2Fixed> randomPath(int partCount, Fixed3 maxExtrusion)
+        {
+            if (partCount < 2) return [];
+
+            var builder = ImmutableArray.CreateBuilder<Vec2Fixed>(partCount + 1);
+            var currentPos = randomStep(new Vec2Fixed(), maxExtrusion);
+            builder.Add(currentPos);
+
+            var returnStartIdx = (int) (partCount * 0.7f);
+
+            for (var i = 1; i <= returnStartIdx; i++)
+            {
+                currentPos = randomStep(currentPos, maxExtrusion);
+                builder.Add(currentPos);
+            }
+
+            for (var i = returnStartIdx + 1; i < partCount; i++)
+            {
+                var remainingSteps = partCount - i;
+                var towardZero = new Vec2Fixed(
+                    -currentPos.X / (Fixed3) remainingSteps,
+                    -currentPos.Y / (Fixed3) remainingSteps
+                );
+
+                currentPos += towardZero;
+                builder.Add(currentPos);
+            }
+
+            builder.Add(new Vec2Fixed(0, 0));
+            return builder.ToImmutable();
+        }
+        static Vec2Fixed randomStep(Vec2Fixed current, Fixed3 max)
+        {
+            var offsetX = Fixed3.From(Random.Shared.NextDouble() * 2 - 1) * max;
+            var offsetY = Fixed3.From(Random.Shared.NextDouble() * 2 - 1) * max;
+
+            return new Vec2Fixed(current.X + offsetX, current.Y + offsetY);
+        }
     }
 
     public void FixedTick(int tick)
@@ -29,6 +73,13 @@ public sealed class Main
         EnemyFieldMovementSystem.FixedTick(World, tick);
         if (tick % 1 == 0)
             towersAttack();
+
+        if (tick % 30 == 0)
+        {
+            World.Entity()
+                .Set(new EnemyHealth(1))
+                .Set(new EnemyOnField(0, 0, 0));
+        }
 
 
         void towersAttack()

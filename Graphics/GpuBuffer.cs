@@ -64,7 +64,17 @@ public sealed class ResizableGpuBuffer<T> : IDisposable
     internal void PrepareFrame(nint commandBuffer)
     {
         if (Data.Length == 0)
+        {
+            if (Buffer.Length == 0)
+            {
+                // 4 bytes is the minimum size, wrote 32 just in case
+                Buffer = new GpuBuffer<T>(Device, 32, Flags);
+                TransferBuffer = new GpuTransferBuffer<T>(Buffer);
+                NeedsCopy = false;
+            }
+
             return;
+        }
 
         if (Buffer.Length < Data.Length)
         {

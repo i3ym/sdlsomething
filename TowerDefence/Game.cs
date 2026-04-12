@@ -12,7 +12,7 @@ public sealed class Game
         {
             var floorMesh = createSubdividedPlane(100, 4);
             var material = new StandardMaterial(renderer.Device, renderer.Window);
-            var floors = new RenderGroup<VertexPN, StandardMaterial.InstanceData>(floorMesh, material);
+            var floors = new InstancedRenderGroup<VertexPN, StandardMaterial.InstanceData>(floorMesh, material);
             floors.SetRange([new StandardMaterial.InstanceData(Matrix4x4.Identity, Vector4.One)]);
             renderer.MainViewport.World.Groups.Add(floors);
         }
@@ -74,7 +74,6 @@ public sealed class Game
         var type = (SDL.EventType) evt.Type;
         if (type == SDL.EventType.MouseMotion)
         {
-            Console.WriteLine(evt.Motion.XRel + "/" + evt.Motion.YRel);
             X += evt.Motion.XRel / 10f;
             Z += evt.Motion.YRel / 10f;
         }

@@ -15,12 +15,6 @@ public sealed class RenderWorld
         SDL.PushGPUFragmentUniformData(commandBuffer, 0, StructureToPointer(SunDirection), sizeof(float) * 3);
 
         foreach (var group in Groups)
-        {
-            group.BeginFrame(renderPass);
-            group.GetBindings(out var vertb, out var indb, out var instab, out var indc, out var instl);
-            SDL.BindGPUVertexBuffers(renderPass, 0, SpanToPointer([vertb, instab]), 2);
-            SDL.BindGPUIndexBuffer(renderPass, indb, SDL.GPUIndexElementSize.IndexElementSize16Bit);
-            SDL.DrawGPUIndexedPrimitives(renderPass, indc, instl, 0, 0, 0);
-        }
+            group.RenderFrame(renderPass);
     }
 }

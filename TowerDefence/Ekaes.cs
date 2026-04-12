@@ -4,7 +4,6 @@ public readonly struct Enemy;
 
 public readonly record struct Entity(int Id)
 {
-    public FatEntity Fat<T>(EkaesSet<T> set) where T : unmanaged => Fat(set.World);
     public FatEntity Fat(Ekaes world) => new(this, world);
 }
 public readonly record struct FatEntity(Entity Entity, Ekaes World)
@@ -12,24 +11,16 @@ public readonly record struct FatEntity(Entity Entity, Ekaes World)
     public static implicit operator Entity(FatEntity entity) => entity.Entity;
 }
 
-public readonly record struct WorldTypeRegistration(string Id, Type Type)
+public interface IStorable { }
+public interface IOnDestroyEntity : IStorable
 {
-    public static WorldTypeRegistration From<T>()
-        where T : unmanaged =>
-        new(typeof(T).Name, typeof(T));
+    void Remove(Entity entity);
 }
 public sealed class Ekaes
 {
-    readonly FrozenDictionary<Type, string> TypeCache;
-    readonly (string, IEkaesSet)[] Components;
+    readonly Dictionary<string, IStorable> Storables = [];
     readonly Queue<int> DestroyedEntities = [];
     int MaxEntityId = 0;
-
-    public Ekaes(IReadOnlyCollection<WorldTypeRegistration> sets)
-    {
-        TypeCache = sets.ToFrozenDictionary(c => c.Type, c => c.Id);
-        Components = [.. sets.Select(c => (c.Id, (IEkaesSet) Activator.CreateInstance(typeof(EkaesSet<>).MakeGenericType(c.Type), [this])!))];
-    }
 
     public FatEntity Entity()
     {
@@ -41,16 +32,30 @@ public sealed class Ekaes
 
     public void Destroy(Entity entity)
     {
-        foreach (var (_, set) in Components)
-            set.Remove(entity);
+        foreach (var set in Storables.Values)
+            if (set is IOnDestroyEntity ode)
+                ode.Remove(entity);
 
         DestroyedEntities.Enqueue(entity.Id);
     }
 
-    public EkaesSet<T> Component<T>(string name)
-        where T : unmanaged =>
-        (EkaesSet<T>) Components.First(c => c.Item1 == name).Item2;
-    public EkaesSet<T> Component<T>()
-        where T : unmanaged =>
-        Component<T>(TypeCache[typeof(T)]);
+    public void SetStorable(string name, IStorable storable) => Storables[name] = storable;
+    public IStorable GetStorable(string name) => Storables[name];
+    public bool TryGetStorable(string name, [MaybeNullWhen(false)] out IStorable storable) =>
+        Storables.TryGetValue(name, out storable);
+
+    public T Singleton<T>(string name)
+        where T : IStorable, new()
+    {
+        if (!TryGetStorable(name, out var storable))
+        {
+            storable = new T();
+            SetStorable(name, storable);
+        }
+
+        return (T) storable;
+    }
+    public T Singleton<T>()
+        where T : IStorable, new() =>
+        Singleton<T>(typeof(T).FullName ?? typeof(T).Name);
 }

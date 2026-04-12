@@ -82,13 +82,13 @@ public interface IMaterial : IDisposable
 {
     void BeginFrame(nint renderPass);
 }
-public abstract class Material<T> : IMaterial
-    where T : unmanaged
+public abstract class MaterialBase<TVertex> : IMaterial
+    where TVertex : unmanaged
 {
     readonly GpuDevice Device;
     readonly nint GraphicsPipeline;
 
-    protected Material(GpuDevice device, SDL.GPUGraphicsPipelineCreateInfo info)
+    protected MaterialBase(GpuDevice device, SDL.GPUGraphicsPipelineCreateInfo info)
     {
         Device = device;
         GraphicsPipeline = SDL.CreateGPUGraphicsPipeline(device.Handle, info);
@@ -105,6 +105,17 @@ public abstract class Material<T> : IMaterial
     }
 
     public void Dispose() => SDL.ReleaseGPUGraphicsPipeline(Device.Handle, GraphicsPipeline);
+}
+public abstract class NonInstancedMaterial<TVertex> : MaterialBase<TVertex>
+    where TVertex : unmanaged
+{
+    protected NonInstancedMaterial(GpuDevice device, SDL.GPUGraphicsPipelineCreateInfo info) : base(device, info) { }
+}
+public abstract class InstancedMaterial<TVertex, TInstance> : MaterialBase<TVertex>
+    where TVertex : unmanaged
+    where TInstance : unmanaged
+{
+    protected InstancedMaterial(GpuDevice device, SDL.GPUGraphicsPipelineCreateInfo info) : base(device, info) { }
 }
 
 public readonly struct VertexPN
@@ -128,7 +139,7 @@ public readonly struct VertexPN
         NZ = nz;
     }
 }
-public sealed class StandardMaterial : Material<VertexPN>
+public sealed class StandardMaterial : InstancedMaterial<VertexPN, StandardMaterial.InstanceData>
 {
     public readonly struct InstanceData
     {
@@ -176,5 +187,51 @@ public sealed class StandardMaterial : Material<VertexPN>
     }
 
     public StandardMaterial(GpuDevice device, Window window)
+        : base(device, BuildInfo(device, window)) { }
+}
+
+public sealed class LineMaterial : NonInstancedMaterial<LineMaterial.Vertex>
+{
+    public readonly struct Vertex
+    {
+        public readonly float X, Y, Z;
+        public readonly float R, G, B;
+
+        public Vertex(float x, float y, float z, float r, float g, float b)
+        {
+            X = x;
+            Y = y;
+            Z = z;
+            R = r;
+            G = g;
+            B = b;
+        }
+    }
+
+    static unsafe SDL.GPUGraphicsPipelineCreateInfo BuildInfo(GpuDevice device, Window window)
+    {
+        var props = new MaterialPipelineProperties()
+        {
+            PrimitiveType = SDL.GPUPrimitiveType.LineList,
+            DepthStencilFormat = GetStencilFormat(device),
+            VertexBuffers = [
+                new(
+                    new(SDL.GPUVertexInputRate.Vertex, (uint) sizeof(Vertex)),
+                    [
+                        new(SDL.GPUVertexElementFormat.Float3, sizeof(float) * 0),
+                        new(SDL.GPUVertexElementFormat.Float3, sizeof(float) * 3),
+                    ]
+                ),
+            ],
+        };
+        var info = props.CreatePipelineInfoPart(device, window.Handle);
+        var dir = "/home/i3ym/workspace/Projects/_test/sdlsomething";
+        info.VertexShader = LoadShader(device, Path.Combine(dir, "triangle-noinst.vert.spv"), SDL.GPUShaderStage.Vertex);
+        info.FragmentShader = LoadShader(device, Path.Combine(dir, "triangle-unshaded.frag.spv"), SDL.GPUShaderStage.Fragment);
+
+        return info;
+    }
+
+    public LineMaterial(GpuDevice device, Window window)
         : base(device, BuildInfo(device, window)) { }
 }

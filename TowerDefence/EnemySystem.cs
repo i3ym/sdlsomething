@@ -14,15 +14,10 @@ public record struct EnemyHealth(int Health)
     }
 }
 public record struct EnemyPosition(Vec2Fixed Position) : IPosition;
+public record struct EnemyMovesToTower;
 
 public static class EnemySystem
 {
-    public static IEnumerable<WorldTypeRegistration> GetRegistrations()
-    {
-        yield return WorldTypeRegistration.From<EnemyHealth>();
-        yield return WorldTypeRegistration.From<EnemyPosition>();
-    }
-
     public static void FixedTick(Ekaes world, int tick)
     {
         if (tick % 1 == 0)
@@ -35,17 +30,21 @@ public static class EnemySystem
             var angle = Random.Shared.NextDouble() * Math.PI * 2;
             var pos = new EnemyPosition(new(Fixed3.From(Math.Cos(angle)) * 100, Fixed3.From(Math.Sin(angle)) * 100));
 
-            world.Entity()
-                .Set(new EnemyHealth(1))
-                .Set(pos);
+            // world.Entity()
+            //     .Set(new EnemyHealth(1))
+            //     .Set(pos);
         }
         static void enemiesMove(Ekaes world)
         {
             var enemyPositions = world.Component<EnemyPosition>();
             var towerPositions = world.Component<TowerPosition>();
+            var processEnemy = world.Component<EnemyMovesToTower>();
 
             foreach (ref var enemy in enemyPositions)
             {
+                if (!processEnemy.Has(enemy.Entity))
+                    continue;
+
                 ref var enemyPos = ref enemy.Value;
                 TowerPosition? closest = null;
                 var closestDist = Fixed3.MaxValue;

@@ -5,19 +5,50 @@ public interface IRenderGroup : IDisposable
     int InstancesCount { get; }
 
     void PrepareFrame(nint commandBuffer);
-    void BeginFrame(nint renderPass);
-    void GetBindings(out SDL.GPUBufferBinding vertices, out SDL.GPUBufferBinding indices, out SDL.GPUBufferBinding instances, out uint indicesCount, out uint instanceCount);
+    void RenderFrame(nint renderPass);
 }
-public sealed class RenderGroup<TVertex, TInstance> : IRenderGroup
+public sealed class NonInstancedRenderGroup<TVertex> : IRenderGroup
+    where TVertex : unmanaged
+{
+    int IRenderGroup.InstancesCount => 1;
+    readonly IMesh<TVertex> Mesh;
+    readonly NonInstancedMaterial<TVertex> Material;
+
+    public NonInstancedRenderGroup(IMesh<TVertex> mesh, NonInstancedMaterial<TVertex> material)
+    {
+        Mesh = mesh;
+        Material = material;
+    }
+
+    public void PrepareFrame(nint commandBuffer)
+    {
+        Mesh.PrepareFrame(commandBuffer);
+    }
+    public void RenderFrame(nint renderPass)
+    {
+        Material.BeginFrame(renderPass);
+        Mesh.RenderFrame(renderPass, out var vertb);
+
+        SDL.BindGPUVertexBuffers(renderPass, 0, SpanToPointer([vertb]), 1);
+
+        var indicesCount = Mesh.IndicesCount;
+        if (indicesCount == 0) SDL.DrawGPUPrimitives(renderPass, (uint) Mesh.VerticesCount, 1, 0, 0);
+        else SDL.DrawGPUIndexedPrimitives(renderPass, (uint) indicesCount, 1, 0, 0, 0);
+    }
+
+    public void Dispose() { }
+}
+
+public sealed class InstancedRenderGroup<TVertex, TInstance> : IRenderGroup
     where TVertex : unmanaged
     where TInstance : unmanaged
 {
     public int InstancesCount => InstanceData.Length;
-    readonly Mesh<TVertex> Mesh;
-    readonly Material<TVertex> Material;
+    readonly IMesh<TVertex> Mesh;
+    readonly InstancedMaterial<TVertex, TInstance> Material;
     readonly ResizableGpuBuffer<TInstance> InstanceData;
 
-    public RenderGroup(Mesh<TVertex> mesh, Material<TVertex> material)
+    public InstancedRenderGroup(IMesh<TVertex> mesh, InstancedMaterial<TVertex, TInstance> material)
     {
         Mesh = mesh;
         Material = material;
@@ -34,16 +65,19 @@ public sealed class RenderGroup<TVertex, TInstance> : IRenderGroup
         Mesh.PrepareFrame(commandBuffer);
         InstanceData.PrepareFrame(commandBuffer);
     }
-    public void BeginFrame(nint renderPass)
+    public void RenderFrame(nint renderPass)
     {
+        if (InstanceData.Length == 0) return;
+
         Material.BeginFrame(renderPass);
-    }
-    public void GetBindings(out SDL.GPUBufferBinding vertices, out SDL.GPUBufferBinding indices, out SDL.GPUBufferBinding instances, out uint indicesCount, out uint instanceCount)
-    {
-        Mesh.GetBindings(out vertices, out indices);
-        InstanceData.GetBinding(out instances);
-        indicesCount = (uint) Mesh.IndicesCount;
-        instanceCount = (uint) InstanceData.Length;
+        Mesh.RenderFrame(renderPass, out var vertb);
+        InstanceData.GetBinding(out var instab);
+
+        SDL.BindGPUVertexBuffers(renderPass, 0, SpanToPointer([vertb, instab]), 2);
+
+        var indicesCount = Mesh.IndicesCount;
+        if (indicesCount == 0) SDL.DrawGPUPrimitives(renderPass, (uint) Mesh.VerticesCount, (uint) InstanceData.Length, 0, 0);
+        else SDL.DrawGPUIndexedPrimitives(renderPass, (uint) indicesCount, (uint) InstanceData.Length, 0, 0, 0);
     }
 
     public void Dispose() => InstanceData.Dispose();
