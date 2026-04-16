@@ -1,5 +1,12 @@
 namespace SdlSomething.Graphics;
 
+public interface IRenderGroup : IDisposable
+{
+    int InstancesCount { get; }
+
+    void PrepareFrame(nint commandBuffer);
+    void RenderFrame(nint renderPass);
+}
 public sealed class RenderWorld
 {
     public Vector3 SunDirection { get; set; } = new Vector3(-.5f, -1, -.67f);

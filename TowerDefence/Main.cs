@@ -10,8 +10,8 @@ public sealed class Main
 
         World.Singleton<Field>()
             .Paths.AddRange([
-                // [new Vec2Fixed(7, 5), new Vec2Fixed(0, 5), new Vec2Fixed(0, 0)],
-                randomPath(5, 4)
+                [new Vec2Fixed(-7, -5), new Vec2Fixed(0, -5), new Vec2Fixed(0, 0)],
+                // randomPath(5, 4)
             ]);
 
         // World.Entity()

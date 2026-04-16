@@ -19,8 +19,6 @@ using var window = new Window();
 using var device = new GpuDevice();
 window.ClaimGPU(device);
 
-var depthStencilFormat = GetStencilFormat(device);
-
 
 var renderer = new Renderer(window, device);
 
@@ -34,6 +32,8 @@ var timeUpdate = TimeSpan.Zero;
 var timeRender = TimeSpan.Zero;
 var timeGpu = TimeSpan.Zero;
 
+
+        new SdlSomething.TowerDefence.Game(renderer);
 var loop = true;
 while (loop)
 {

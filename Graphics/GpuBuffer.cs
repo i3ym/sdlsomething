@@ -43,6 +43,13 @@ public sealed class ResizableGpuBuffer<T> : IDisposable
     public GpuDevice Device { get; }
     public int Length => Data.Length;
 
+    public T[] Arr
+    {
+        private get => (MemoryMarshal.TryGetArray<T>(WritableData, out var segment) ? segment.Array : null)
+            ?? throw new InvalidOperationException("Could not get gpu buffer array");
+        set => WritableData = value;
+    }
+
     public ReadOnlyMemory<T> ReadonlyData => Data;
     public ref Memory<T> WritableData { get { NeedsCopy = true; return ref Data; } }
 
@@ -61,7 +68,24 @@ public sealed class ResizableGpuBuffer<T> : IDisposable
         Flags = flags;
     }
 
-    internal void PrepareFrame(nint commandBuffer)
+    public Span<T> GetWritableSpan(int count)
+    {
+        EnsureBufferAtLeast(count);
+        WritableData = Arr.AsMemory(0, count);
+
+        return WritableData.Span;
+    }
+    public void EnsureBufferAtLeast(int count)
+    {
+        if (Data.Length >= count) return;
+
+        var dataLength = Data.Length;
+        var arr = Arr;
+        Array.Resize(ref arr, BytesExtensions.EnsureArrayLength(64, Data.Length, count));
+        WritableData = arr.AsMemory(0, dataLength);
+    }
+
+    public void PrepareFrame(nint commandBuffer)
     {
         if (Data.Length == 0)
         {
@@ -95,7 +119,7 @@ public sealed class ResizableGpuBuffer<T> : IDisposable
             NeedsCopy = false;
         }
     }
-    public void GetBinding(out SDL.GPUBufferBinding binding) => binding = new SDL.GPUBufferBinding() { Buffer = Buffer.Handle };
+    public SDL.GPUBufferBinding GetBinding() => new SDL.GPUBufferBinding() { Buffer = Buffer.Handle };
 
     void DisposeBuffers()
     {

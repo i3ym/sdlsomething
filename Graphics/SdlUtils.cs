@@ -2,35 +2,15 @@ namespace SdlSomething.Graphics;
 
 public static class SdlUtils
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe nint StructureToPointer<T>(in T structure)
         where T : unmanaged =>
         (nint) Unsafe.AsPointer(in structure);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe nint SpanToPointer<T>(ReadOnlySpan<T> span)
         where T : unmanaged =>
         (nint) Unsafe.AsPointer(ref MemoryMarshal.GetReference(span));
-
-    public static nint LoadShader(GpuDevice device, string path, SDL.GPUShaderStage stage)
-    {
-        var codeptr = SDL.LoadFile(path, out var codeSize);
-        var info = new SDL.GPUShaderCreateInfo()
-        {
-            Code = codeptr,
-            CodeSize = codeSize,
-            Entrypoint = "main",
-            Format = SDL.GPUShaderFormat.SPIRV,
-            Stage = stage,
-            NumSamplers = 0,
-            NumStorageBuffers = 0,
-            NumStorageTextures = 0,
-            NumUniformBuffers = 1,
-        };
-
-        var shader = SDL.CreateGPUShader(device.Handle, info);
-        SDL.Free(codeptr);
-
-        return shader;
-    }
 
     public static SDL.GPUTextureFormat GetStencilFormat(GpuDevice device)
     {
