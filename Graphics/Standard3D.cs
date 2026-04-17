@@ -1,3 +1,5 @@
+using Slangc.NET;
+
 namespace SdlSomething;
 
 public interface IStandard3DRenderGroup : IRenderGroup;
@@ -210,7 +212,7 @@ public sealed class Standard3DMaterial
     public void BeginFrame(nint renderPass) => SDL.BindGPUGraphicsPipeline(renderPass, GraphicsPipeline);
     public void Dispose() => SDL.ReleaseGPUGraphicsPipeline(Device.Handle, GraphicsPipeline);
 
-    static unsafe SDL.GPUGraphicsPipelineCreateInfo CreatePipelineInfo(GpuDevice device, Window window, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions matOptions)
+    static SDL.GPUGraphicsPipelineCreateInfo CreatePipelineInfo(GpuDevice device, Window window, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions matOptions)
     {
         var depthStencilFormat = GetStencilFormat(device);
         var backfaceCulling = true;
@@ -226,7 +228,7 @@ public sealed class Standard3DMaterial
             {
                 Slot = slot,
                 InputRate = SDL.GPUVertexInputRate.Vertex,
-                Pitch = (uint) sizeof(T),
+                Pitch = USizeOf<T>(),
             });
             vertexAttributes.Add(new() { BufferSlot = slot, Location = slot, Format = format, });
         }
@@ -245,7 +247,7 @@ public sealed class Standard3DMaterial
             {
                 Slot = 3,
                 InputRate = SDL.GPUVertexInputRate.Instance,
-                Pitch = (uint) sizeof(Matrix4x4),
+                Pitch = USizeOf<Matrix4x4>(),
             });
             vertexAttributes.Add(new() { BufferSlot = 3, Location = 3, Format = SDL.GPUVertexElementFormat.Float4, Offset = sizeof(float) * 4 * 0 });
             vertexAttributes.Add(new() { BufferSlot = 3, Location = 4, Format = SDL.GPUVertexElementFormat.Float4, Offset = sizeof(float) * 4 * 1 });
@@ -258,13 +260,13 @@ public sealed class Standard3DMaterial
             {
                 Slot = 4,
                 InputRate = SDL.GPUVertexInputRate.Instance,
-                Pitch = (uint) sizeof(Vector4),
+                Pitch = USizeOf<Vector4>(),
             });
             vertexAttributes.Add(new() { BufferSlot = 4, Location = 7, Format = SDL.GPUVertexElementFormat.Float4 });
         }
 
-        var vertexShader = LoadShader(device, SDL.GPUShaderStage.Vertex, shaderOptions);
-        var fragmentShader = LoadShader(device, SDL.GPUShaderStage.Fragment, shaderOptions);
+        var vertexShader = CompileShader(device, SDL.GPUShaderStage.Vertex, shaderOptions);
+        var fragmentShader = CompileShader(device, SDL.GPUShaderStage.Fragment, shaderOptions);
 
         return new SDL.GPUGraphicsPipelineCreateInfo()
         {
@@ -304,40 +306,33 @@ public sealed class Standard3DMaterial
             },
         };
     }
-    static unsafe nint LoadShader(GpuDevice device, SDL.GPUShaderStage stage, Standard3DShaderOptions options)
+    static nint CompileShader(GpuDevice device, SDL.GPUShaderStage stage, Standard3DShaderOptions options)
     {
         Console.WriteLine($"Compiling standard3d shader: {stage} ({options})");
 
-        var filename = Path.GetTempFileName();
-        var psi = new ProcessStartInfo("/opt/shader-slang-bin/bin/slangc")
+        var args = new List<string>()
         {
-            ArgumentList =
-            {
-                "resources/shaders/3d.slang",
-                "-target", "spirv",
-                "-o", filename,
-            },
+            "resources/shaders/3d.slang",
+            "-target", "spirv",
+            "-matrix-layout-column-major",
         };
+
         if ((options & Standard3DShaderOptions.Normals) != 0)
-            psi.ArgumentList.Add("-DHAS_NORMAL");
+            args.Add("-DHAS_NORMAL");
         if ((options & Standard3DShaderOptions.Color) != 0)
-            psi.ArgumentList.Add("-DHAS_COLOR");
+            args.Add("-DHAS_COLOR");
         if ((options & Standard3DShaderOptions.InstanceTransform) != 0)
-            psi.ArgumentList.Add("-DHAS_INSTANCE_TRANSFORM");
+            args.Add("-DHAS_INSTANCE_TRANSFORM");
         if ((options & Standard3DShaderOptions.InstanceColor) != 0)
-            psi.ArgumentList.Add("-DHAS_INSTANCE_COLOR");
+            args.Add("-DHAS_INSTANCE_COLOR");
 
         if ((options & (Standard3DShaderOptions.Color | Standard3DShaderOptions.InstanceColor)) != 0)
-            psi.ArgumentList.Add("-DHAS_ANY_COLOR");
+            args.Add("-DHAS_ANY_COLOR");
 
-        using (var proc = Process.Start(psi)!)
-            proc.WaitForExit();
-
-        var shader = File.ReadAllBytes(filename);
-        File.Delete(filename);
+        var shader = SlangCompiler.Compile([.. args]);
         var info = new SDL.GPUShaderCreateInfo()
         {
-            Code = (nint) Unsafe.AsPointer(ref MemoryMarshal.GetReference(shader)),
+            Code = StructureToPointer(in MemoryMarshal.GetReference(shader)),
             CodeSize = (nuint) shader.Length,
             Entrypoint = "main",
             Format = SDL.GPUShaderFormat.SPIRV,

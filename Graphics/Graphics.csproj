@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="SDL3-CS" Version="3.4.2" />
+    <PackageReference Include="Slangc.NET" Version="2026.5.2" />
   </ItemGroup>
 
   <ItemGroup>

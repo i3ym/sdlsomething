@@ -12,6 +12,16 @@ public static class SdlUtils
         where T : unmanaged =>
         (nint) Unsafe.AsPointer(ref MemoryMarshal.GetReference(span));
 
+    // to not have to write "unsafe" everywhere
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe int SizeOf<T>()
+        where T : unmanaged =>
+        sizeof(T);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe uint USizeOf<T>()
+        where T : unmanaged =>
+        (uint) sizeof(T);
+
     public static SDL.GPUTextureFormat GetStencilFormat(GpuDevice device)
     {
         ReadOnlySpan<SDL.GPUTextureFormat> depthFormats = [
