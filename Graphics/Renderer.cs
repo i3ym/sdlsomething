@@ -21,7 +21,7 @@ public sealed class Renderer
         MainViewport = new MainViewport(this, new());
     }
 
-    [Obsolete]
+    [Obsolete("should be internal, TODO: move main loop into Graphics")]
     public void ResizeTemp(uint w, uint h) => Resize(w, h);
     internal void Resize(uint w, uint h)
     {
