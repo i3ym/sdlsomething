@@ -1,4 +1,4 @@
-namespace SdlSomething.Graphics;
+namespace SdlSomething;
 
 public static class PrimitiveMeshes
 {

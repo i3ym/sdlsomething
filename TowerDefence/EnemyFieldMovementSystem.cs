@@ -1,4 +1,4 @@
-namespace SdlSomething.TowerDefence;
+namespace TowerDefence;
 
 public record struct EnemyOnField(int PathIndex, int PathPart, Fixed3 PathProgress);
 public static class EnemyFieldMovementSystem

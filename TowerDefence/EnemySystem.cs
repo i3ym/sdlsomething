@@ -1,4 +1,4 @@
-namespace SdlSomething.TowerDefence;
+namespace TowerDefence;
 
 public record struct EnemyHealth(int Health)
 {

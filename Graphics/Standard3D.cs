@@ -1,4 +1,4 @@
-namespace SdlSomething.Graphics;
+namespace SdlSomething;
 
 public interface IStandard3DRenderGroup : IRenderGroup;
 public sealed class Standard3DRenderGroup : IStandard3DRenderGroup
@@ -313,7 +313,7 @@ public sealed class Standard3DMaterial
         {
             ArgumentList =
             {
-                "/home/i3ym/workspace/Projects/_test/sdlsomething/resources/shaders/3d.slang",
+                "resources/shaders/3d.slang",
                 "-target", "spirv",
                 "-o", filename,
             },

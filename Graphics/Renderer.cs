@@ -1,4 +1,4 @@
-namespace SdlSomething.Graphics;
+namespace SdlSomething;
 
 public sealed class Renderer
 {
@@ -10,7 +10,7 @@ public sealed class Renderer
 
     public Window Window { get; }
     public GpuDevice Device { get; }
-    internal MainViewport MainViewport { get; }
+    public MainViewport MainViewport { get; }
     public List<SubViewport> Viewports { get; } = [];
 
     public Renderer(Window window, GpuDevice device)
@@ -21,6 +21,8 @@ public sealed class Renderer
         MainViewport = new MainViewport(this, new());
     }
 
+    [Obsolete]
+    public void ResizeTemp(uint w, uint h) => Resize(w, h);
     internal void Resize(uint w, uint h)
     {
         WindowWidth = w;

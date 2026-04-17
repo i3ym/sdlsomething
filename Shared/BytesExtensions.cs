@@ -1,4 +1,4 @@
-namespace SdlSomething;
+namespace SdlSomethingShared;
 
 public static class BytesExtensions
 {

@@ -1,4 +1,4 @@
-namespace SdlSomething.TowerDefence;
+namespace TowerDefence;
 
 public sealed partial class EkaesSet<T> : IOnDestroyEntity
     where T : unmanaged

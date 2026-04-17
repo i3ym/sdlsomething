@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Graphics/Graphics.csproj" />
+  <Project Path="Shared/Shared.csproj" />
+  <Project Path="TowerDefence/TowerDefence.csproj" />
+  <Project Path="ViewModel/ViewModel.csproj" />
+</Solution>

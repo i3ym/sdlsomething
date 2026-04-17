@@ -1,4 +1,4 @@
-namespace SdlSomething.Graphics;
+namespace SdlSomething;
 
 public abstract class Viewport
 {
@@ -31,7 +31,7 @@ public abstract class Viewport
     }
 }
 
-sealed class MainViewport : Viewport
+public sealed class MainViewport : Viewport
 {
     protected override float RealWidth => Renderer.WindowWidth;
     protected override float RealHeight => Renderer.WindowHeight;
