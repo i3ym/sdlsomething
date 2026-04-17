@@ -1,4 +1,4 @@
-namespace TowerDefence;
+namespace TowerDefence.Data;
 
 public sealed partial class EkaesSet<T> : IOnDestroyEntity
     where T : unmanaged

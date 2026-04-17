@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace SdlSomething;
 
 public readonly partial struct Fixed3

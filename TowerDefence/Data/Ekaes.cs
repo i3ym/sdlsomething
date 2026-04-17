@@ -1,4 +1,4 @@
-namespace TowerDefence;
+namespace TowerDefence.Data;
 
 public readonly struct Enemy;
 
