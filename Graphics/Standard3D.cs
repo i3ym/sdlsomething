@@ -83,6 +83,46 @@ public sealed class Standard3DInstanceDataTC : IStandard3DInstanceData
         Color.Dispose();
     }
 }
+public sealed class Standard3DInstanceDataSingleT : IStandard3DInstanceData
+{
+    int IStandard3DInstanceData.InstanceCount => 1;
+    public Standard3DShaderOptions ShaderOptions => Standard3DShaderOptions.InstanceTransform;
+    public Matrix4x4 Transform
+    {
+        get => field;
+        set
+        {
+            NeedsUpdate = true;
+            field = value;
+        }
+    } = Matrix4x4.Identity;
+
+    bool NeedsUpdate = true;
+    readonly ResizableGpuBuffer<Matrix4x4> Buffer;
+
+    public Standard3DInstanceDataSingleT(GpuDevice device, Matrix4x4 transform)
+        : this(device) =>
+        Transform = transform;
+
+    public Standard3DInstanceDataSingleT(GpuDevice device) => Buffer = new(device, SDL.GPUBufferUsageFlags.Vertex);
+
+    public void PrepareFrame(nint commandBuffer)
+    {
+        if (NeedsUpdate)
+        {
+            Buffer.GetWritableSpan(1)[0] = Transform;
+            Buffer.PrepareFrame(commandBuffer);
+        }
+    }
+
+    public void RenderFrame(nint renderPass)
+    {
+        var instat = Buffer.GetBinding();
+        SDL.BindGPUVertexBuffers(renderPass, 3, StructureToPointer(instat), 1);
+    }
+
+    public void Dispose() => Buffer.Dispose();
+}
 
 public interface IStandard3DMesh : IDisposable
 {

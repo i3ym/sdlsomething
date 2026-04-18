@@ -18,9 +18,9 @@ public sealed class ViewModel
         renderer.MainViewport.World.Groups.Add(new Standard3DRenderGroup(LinesMesh = new(renderer.Device), null, renderer.Window, new() { PrimitiveType = SDL.GPUPrimitiveType.LineList }));
     }
 
-    public void Event(ref SDL.Event evt)
+    public bool Event(ref SDL.Event evt)
     {
-
+        return false;
     }
 
     long LastFrameTime;

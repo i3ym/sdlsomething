@@ -11,7 +11,8 @@ window.ClaimGPU(device);
 var renderer = new Renderer(window, device);
 
 var main = new TowerDefence.Main();
-var game = new TowerDefence.ViewModel(main, renderer);
+var game = new TowerDefence.TestScene(renderer);
+// var game = new TowerDefence.ViewModel(main, renderer);
 
 var nt = DateTime.Now + TimeSpan.FromSeconds(1);
 var f = 0;
@@ -21,9 +22,7 @@ var timeRender = TimeSpan.Zero;
 var timeGpu = TimeSpan.Zero;
 
 
-    new TowerDefence.Game(renderer);
-var loop = true;
-while (loop)
+while (true)
 {
     f++;
     if (DateTime.Now > nt)
@@ -39,15 +38,10 @@ while (loop)
         var type = (SDL.EventType) e.Type;
 
         if (type == SDL.EventType.Quit)
-        {
-            loop = false;
-            break;
-        }
+            goto end;
 
-        if (type == SDL.EventType.WindowResized)
-            renderer.ResizeTemp((uint) e.Window.Data1, (uint) e.Window.Data2);
-
-        game.Event(ref e);
+        if (renderer.Event(ref e)) continue;
+        if (game.Event(ref e)) continue;
     }
 
     var start = Stopwatch.GetTimestamp();
@@ -62,4 +56,5 @@ while (loop)
     timeGpu = Stopwatch.GetElapsedTime(start);
 }
 
+end:;
 SDL.Quit();

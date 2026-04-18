@@ -21,13 +21,21 @@ public sealed class Renderer
         MainViewport = new MainViewport(this, new());
     }
 
-    [Obsolete("should be internal, TODO: move main loop into Graphics")]
-    public void ResizeTemp(uint w, uint h) => Resize(w, h);
-    internal void Resize(uint w, uint h)
+    void Resize(uint w, uint h)
     {
         WindowWidth = w;
         WindowHeight = h;
         ReleaseDepthStencilTexture();
+    }
+
+    public bool Event(ref SDL.Event evt)
+    {
+        var type = (SDL.EventType) evt.Type;
+
+        if (type == SDL.EventType.WindowResized)
+            Resize((uint) evt.Window.Data1, (uint) evt.Window.Data2);
+
+        return false;
     }
 
     public void Render()
