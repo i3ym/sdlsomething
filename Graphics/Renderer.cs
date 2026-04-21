@@ -3,6 +3,7 @@ namespace SdlSomething;
 public sealed class Renderer
 {
     public nint MainDepthStencilTexture { get; private set; }
+    public nint MainShadowTexture { get; private set; }
 
     public ulong Frame { get; private set; }
     public uint WindowWidth { get; private set; }
@@ -18,6 +19,7 @@ public sealed class Renderer
         Window = window;
         Device = device;
 
+        MainShadowTexture = CreateShadowTexture(2048);
         MainViewport = new MainViewport(this, new());
     }
 
@@ -62,9 +64,9 @@ public sealed class Renderer
             return;
         }
 
-        MainViewport.Render(commandBuffer, swapchainTexture);
+        MainViewport.Render(commandBuffer, swapchainTexture, MainShadowTexture);
         foreach (var viewport in Viewports)
-            viewport.Render(commandBuffer, swapchainTexture);
+            viewport.Render(commandBuffer, swapchainTexture, MainShadowTexture);
 
         SDL.SubmitGPUCommandBuffer(commandBuffer);
     }
@@ -90,6 +92,31 @@ public sealed class Renderer
                 SampleCount = SDL.GPUSampleCount.SampleCount1,
                 Format = GetStencilFormat(Device),
                 Usage = SDL.GPUTextureUsageFlags.DepthStencilTarget,
+            }
+        );
+    }
+
+    void ReleaseShadowTexture()
+    {
+        if (MainShadowTexture == nint.Zero) return;
+
+        SDL.ReleaseGPUTexture(Device.Handle, MainShadowTexture);
+        MainShadowTexture = nint.Zero;
+    }
+    nint CreateShadowTexture(uint resolution)
+    {
+        return SDL.CreateGPUTexture(
+            Device.Handle,
+            new SDL.GPUTextureCreateInfo()
+            {
+                Type = SDL.GPUTextureType.TextureType2D,
+                Width = resolution,
+                Height = resolution,
+                LayerCountOrDepth = 1,
+                NumLevels = 1,
+                SampleCount = SDL.GPUSampleCount.SampleCount1,
+                Format = SDL.GPUTextureFormat.D32Float,
+                Usage = SDL.GPUTextureUsageFlags.DepthStencilTarget | SDL.GPUTextureUsageFlags.Sampler,
             }
         );
     }

@@ -2,8 +2,7 @@ using Slangc.NET;
 
 namespace SdlSomething;
 
-public interface IStandard3DRenderGroup : IRenderGroup;
-public sealed class Standard3DRenderGroup : IStandard3DRenderGroup
+public sealed class Standard3DRenderGroup : IRenderGroup
 {
     public int InstancesCount => InstanceData?.InstanceCount ?? 1;
     readonly IStandard3DMesh Mesh;
@@ -14,7 +13,7 @@ public sealed class Standard3DRenderGroup : IStandard3DRenderGroup
     {
         Mesh = mesh;
         InstanceData = instanceData;
-        Material = new Standard3DMaterial(mesh.Device, window, mesh.ShaderOptions | (instanceData?.ShaderOptions ?? 0), matOptions);
+        Material = new Standard3DMaterial(mesh.Device, window, mesh.ShaderOptions | (instanceData?.ShaderOptions ?? 0) | Standard3DShaderOptions.ReceiveShadow, matOptions);
     }
 
     public void PrepareFrame(nint commandBuffer)
@@ -27,6 +26,18 @@ public sealed class Standard3DRenderGroup : IStandard3DRenderGroup
         if (InstancesCount == 0) return;
 
         Material.BeginFrame(renderPass);
+        Mesh.RenderFrame(renderPass);
+        InstanceData?.RenderFrame(renderPass);
+
+        var indicesCount = Mesh.IndicesCount;
+        if (indicesCount == 0) SDL.DrawGPUPrimitives(renderPass, (uint) Mesh.VerticesCount, (uint) InstancesCount, 0, 0);
+        else SDL.DrawGPUIndexedPrimitives(renderPass, (uint) indicesCount, (uint) InstancesCount, 0, 0, 0);
+    }
+    public void RenderShadow(nint renderPass)
+    {
+        if (InstancesCount == 0) return;
+
+        Material.BeginShadow(renderPass);
         Mesh.RenderFrame(renderPass);
         InstanceData?.RenderFrame(renderPass);
 
@@ -227,8 +238,9 @@ public enum Standard3DShaderOptions
     Color = 1 << 1,
     InstanceTransform = 1 << 2,
     InstanceColor = 1 << 3,
+    ReceiveShadow = 1 << 4,
 
-    All = Normals | Color | InstanceTransform | InstanceColor,
+    All = Normals | Color | InstanceTransform | InstanceColor | ReceiveShadow,
 }
 public sealed class Standard3DMaterialOptions
 {
@@ -238,17 +250,23 @@ public sealed class Standard3DMaterial
 {
     readonly GpuDevice Device;
     readonly nint GraphicsPipeline;
+    readonly nint ShadowPipeline;
 
     public Standard3DMaterial(GpuDevice device, Window window, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions? matOptions = null)
     {
         Device = device;
+
         var info = CreatePipelineInfo(device, window, shaderOptions, matOptions ?? new());
         GraphicsPipeline = SDL.CreateGPUGraphicsPipeline(device.Handle, info);
-
         SDL.ReleaseGPUShader(device.Handle, info.VertexShader);
         SDL.ReleaseGPUShader(device.Handle, info.FragmentShader);
+
+        info = CreateShadowPipelineInfo(device, window, shaderOptions, matOptions ?? new());
+        ShadowPipeline = SDL.CreateGPUGraphicsPipeline(device.Handle, info);
+        SDL.ReleaseGPUShader(device.Handle, info.VertexShader);
     }
 
+    public void BeginShadow(nint renderPass) => SDL.BindGPUGraphicsPipeline(renderPass, ShadowPipeline);
     public void BeginFrame(nint renderPass) => SDL.BindGPUGraphicsPipeline(renderPass, GraphicsPipeline);
     public void Dispose() => SDL.ReleaseGPUGraphicsPipeline(Device.Handle, GraphicsPipeline);
 
@@ -305,8 +323,8 @@ public sealed class Standard3DMaterial
             vertexAttributes.Add(new() { BufferSlot = 4, Location = 7, Format = SDL.GPUVertexElementFormat.Float4 });
         }
 
-        var vertexShader = CompileShader(device, SDL.GPUShaderStage.Vertex, shaderOptions);
-        var fragmentShader = CompileShader(device, SDL.GPUShaderStage.Fragment, shaderOptions);
+        var vertexShader = Compile3DShader(device, SDL.GPUShaderStage.Vertex, shaderOptions);
+        var fragmentShader = Compile3DShader(device, SDL.GPUShaderStage.Fragment, shaderOptions);
 
         return new SDL.GPUGraphicsPipelineCreateInfo()
         {
@@ -346,7 +364,39 @@ public sealed class Standard3DMaterial
             },
         };
     }
-    static nint CompileShader(GpuDevice device, SDL.GPUShaderStage stage, Standard3DShaderOptions options)
+    static SDL.GPUGraphicsPipelineCreateInfo CreateShadowPipelineInfo(GpuDevice device, Window window, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions matOptions)
+    {
+        var depthStencilFormat = GetStencilFormat(device);
+        var backfaceCulling = true;
+        var primitiveType = matOptions.PrimitiveType;
+
+        var vertexShader = Compile3DShader(device, SDL.GPUShaderStage.Vertex, shaderOptions & Standard3DShaderOptions.InstanceTransform);
+        var fragmentShader = CompileEmptyFragShader(device);
+
+        return new SDL.GPUGraphicsPipelineCreateInfo()
+        {
+            PrimitiveType = primitiveType,
+            VertexShader = vertexShader,
+            FragmentShader = fragmentShader,
+            TargetInfo = new SDL.GPUGraphicsPipelineTargetInfo()
+            {
+                HasDepthStencilTarget = true,
+                DepthStencilFormat = depthStencilFormat,
+            },
+            DepthStencilState = new SDL.GPUDepthStencilState()
+            {
+                EnableDepthTest = true,
+                EnableDepthWrite = true,
+                CompareOp = SDL.GPUCompareOp.Less,
+                WriteMask = 0xFF,
+            },
+            RasterizerState = new SDL.GPURasterizerState()
+            {
+                CullMode = backfaceCulling ? SDL.GPUCullMode.Back : SDL.GPUCullMode.None,
+            },
+        };
+    }
+    static nint Compile3DShader(GpuDevice device, SDL.GPUShaderStage stage, Standard3DShaderOptions options)
     {
         Console.WriteLine($"Compiling standard3d shader: {stage} ({options})");
 
@@ -365,6 +415,8 @@ public sealed class Standard3DMaterial
             args.Add("-DHAS_INSTANCE_TRANSFORM");
         if ((options & Standard3DShaderOptions.InstanceColor) != 0)
             args.Add("-DHAS_INSTANCE_COLOR");
+        if ((options & Standard3DShaderOptions.ReceiveShadow) != 0)
+            args.Add("-DRECEIVE_SHADOW");
 
         if ((options & (Standard3DShaderOptions.Color | Standard3DShaderOptions.InstanceColor)) != 0)
             args.Add("-DHAS_ANY_COLOR");
@@ -377,6 +429,33 @@ public sealed class Standard3DMaterial
             Entrypoint = "main",
             Format = SDL.GPUShaderFormat.SPIRV,
             Stage = stage,
+            NumSamplers = stage == SDL.GPUShaderStage.Fragment ? 1u : 0u,
+            NumStorageBuffers = 0,
+            NumStorageTextures = 0,
+            NumUniformBuffers = 1,
+        };
+
+        return SDL.CreateGPUShader(device.Handle, info);
+    }
+    static nint CompileEmptyFragShader(GpuDevice device)
+    {
+        Console.WriteLine($"Compiling empty frag shader: {SDL.GPUShaderStage.Fragment}");
+
+        var args = new List<string>()
+        {
+            "resources/shaders/empty.frag.slang",
+            "-target", "spirv",
+            "-matrix-layout-column-major",
+        };
+
+        var shader = SlangCompiler.Compile([.. args]);
+        var info = new SDL.GPUShaderCreateInfo()
+        {
+            Code = StructureToPointer(in MemoryMarshal.GetReference(shader)),
+            CodeSize = (nuint) shader.Length,
+            Entrypoint = "main",
+            Format = SDL.GPUShaderFormat.SPIRV,
+            Stage = SDL.GPUShaderStage.Fragment,
             NumSamplers = 0,
             NumStorageBuffers = 0,
             NumStorageTextures = 0,
