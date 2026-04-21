@@ -1,3 +1,4 @@
+global using Hexa.NET.ImGui;
 global using SDL3;
 global using SdlSomething;
 global using SdlSomethingShared;

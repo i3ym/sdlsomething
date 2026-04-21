@@ -8,7 +8,7 @@ using var device = new GpuDevice();
 window.ClaimGPU(device);
 
 
-var renderer = new Renderer(window, device);
+using var renderer = new Renderer(window, device);
 
 var main = new TowerDefence.Main();
 var game = new TowerDefence.TestScene(renderer);
