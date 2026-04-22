@@ -242,22 +242,14 @@ public sealed class Standard3DMaterial
     public Standard3DMaterial(GpuDevice device, Window window, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions? matOptions = null)
     {
         Device = device;
-        var info = CreatePipelineInfo(device, window, shaderOptions, matOptions ?? new());
-        GraphicsPipeline = SDL.CreateGPUGraphicsPipeline(device.Handle, info);
-
-        SDL.ReleaseGPUShader(device.Handle, info.VertexShader);
-        SDL.ReleaseGPUShader(device.Handle, info.FragmentShader);
+        GraphicsPipeline = CreatePipeline(device, window, shaderOptions, matOptions ?? new());
     }
 
     public void BeginFrame(nint renderPass) => SDL.BindGPUGraphicsPipeline(renderPass, GraphicsPipeline);
     public void Dispose() => SDL.ReleaseGPUGraphicsPipeline(Device.Handle, GraphicsPipeline);
 
-    static SDL.GPUGraphicsPipelineCreateInfo CreatePipelineInfo(GpuDevice device, Window window, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions matOptions)
+    static nint CreatePipeline(GpuDevice device, Window window, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions matOptions)
     {
-        var depthStencilFormat = GetStencilFormat(device);
-        var backfaceCulling = true;
-        var primitiveType = matOptions.PrimitiveType;
-
         var vertexDescriptions = new List<SDL.GPUVertexBufferDescription>();
         var vertexAttributes = new List<SDL.GPUVertexAttribute>();
 
@@ -305,58 +297,25 @@ public sealed class Standard3DMaterial
             vertexAttributes.Add(new() { BufferSlot = 4, Location = 7, Format = SDL.GPUVertexElementFormat.Float4 });
         }
 
-        var vertexShader = CompileShader(device, SDL.GPUShaderStage.Vertex, shaderOptions);
-        var fragmentShader = CompileShader(device, SDL.GPUShaderStage.Fragment, shaderOptions);
-
-        return new SDL.GPUGraphicsPipelineCreateInfo()
+        var vertexInputState = new SDL.GPUVertexInputState()
         {
-            PrimitiveType = primitiveType,
-            VertexShader = vertexShader,
-            FragmentShader = fragmentShader,
-            TargetInfo = new SDL.GPUGraphicsPipelineTargetInfo()
-            {
-                HasDepthStencilTarget = true,
-                DepthStencilFormat = depthStencilFormat,
-
-                NumColorTargets = 1,
-                ColorTargetDescriptions = SDL.StructureArrayToPointer([
-                    new SDL.GPUColorTargetDescription()
-                    {
-                        Format = SDL.GetGPUSwapchainTextureFormat(device.Handle, window.Handle),
-                    },
-                ]),
-            },
-            DepthStencilState = new SDL.GPUDepthStencilState()
-            {
-                EnableDepthTest = true,
-                EnableDepthWrite = true,
-                CompareOp = SDL.GPUCompareOp.Less,
-                WriteMask = 0xFF,
-            },
-            RasterizerState = new SDL.GPURasterizerState()
-            {
-                CullMode = backfaceCulling ? SDL.GPUCullMode.Back : SDL.GPUCullMode.None,
-            },
-            VertexInputState = new SDL.GPUVertexInputState()
-            {
-                NumVertexBuffers = (uint) vertexDescriptions.Count,
-                VertexBufferDescriptions = SpanToPointer(vertexDescriptions.ToArray()),
-                NumVertexAttributes = (uint) vertexAttributes.Count,
-                VertexAttributes = SpanToPointer(vertexAttributes.ToArray()),
-            },
+            NumVertexBuffers = (uint) vertexDescriptions.Count,
+            VertexBufferDescriptions = SpanToPointer([.. vertexDescriptions]),
+            NumVertexAttributes = (uint) vertexAttributes.Count,
+            VertexAttributes = SpanToPointer([.. vertexAttributes]),
         };
+
+        return SdlSomething.GraphicsPipeline.Create(device, window, new(CompileShaders(device, shaderOptions))
+        {
+            PrimitiveType = matOptions.PrimitiveType,
+            DepthEnabled = true,
+            BackfaceCulling = true,
+            Init = new() { VertexInputState = vertexInputState },
+        });
     }
-    static nint CompileShader(GpuDevice device, SDL.GPUShaderStage stage, Standard3DShaderOptions options)
+    static (nint vert, nint frag) CompileShaders(GpuDevice device, Standard3DShaderOptions options)
     {
-        Console.WriteLine($"Compiling standard3d shader: {stage} ({options})");
-
-        var args = new List<string>()
-        {
-            "resources/shaders/3d.slang",
-            "-target", "spirv",
-            "-matrix-layout-column-major",
-        };
-
+        var args = new List<string>();
         if ((options & Standard3DShaderOptions.Normals) != 0)
             args.Add("-DHAS_NORMAL");
         if ((options & Standard3DShaderOptions.Color) != 0)
@@ -369,20 +328,6 @@ public sealed class Standard3DMaterial
         if ((options & (Standard3DShaderOptions.Color | Standard3DShaderOptions.InstanceColor)) != 0)
             args.Add("-DHAS_ANY_COLOR");
 
-        var shader = SlangCompiler.Compile([.. args]);
-        var info = new SDL.GPUShaderCreateInfo()
-        {
-            Code = StructureToPointer(in MemoryMarshal.GetReference(shader)),
-            CodeSize = (nuint) shader.Length,
-            Entrypoint = "main",
-            Format = SDL.GPUShaderFormat.SPIRV,
-            Stage = stage,
-            NumSamplers = 0,
-            NumStorageBuffers = 0,
-            NumStorageTextures = 0,
-            NumUniformBuffers = 1,
-        };
-
-        return SDL.CreateGPUShader(device.Handle, info);
+        return SdlSomething.GraphicsPipeline.CompileShaders("3d", device, args, description: $"options: {options}");
     }
 }

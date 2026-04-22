@@ -78,10 +78,12 @@ public sealed class SubViewport : Viewport
 
     public SubViewport(Renderer renderer, RenderWorld world) : base(renderer, world)
     {
-        var info = CreateClearPipelineInfo(renderer.Device, renderer.Window);
-        ClearPipeline = SDL.CreateGPUGraphicsPipeline(renderer.Device.Handle, info);
-        SDL.ReleaseGPUShader(renderer.Device.Handle, info.VertexShader);
-        SDL.ReleaseGPUShader(renderer.Device.Handle, info.FragmentShader);
+        ClearPipeline = GraphicsPipeline.Create(renderer.Device, renderer.Window, new(GraphicsPipeline.CompileShaders("flatcolor", renderer.Device))
+        {
+            EnableBlending = true,
+            DepthEnabled = false,
+            BackfaceCulling = false,
+        });
     }
 
     protected override nint BeginRenderPass(nint commandBuffer, nint colorTexture)
@@ -112,70 +114,5 @@ public sealed class SubViewport : Viewport
         SDL.DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
 
         return renderPass;
-    }
-
-    static SDL.GPUGraphicsPipelineCreateInfo CreateClearPipelineInfo(GpuDevice device, Window window)
-    {
-        var vertexShader = CompileShader(device, SDL.GPUShaderStage.Vertex);
-        var fragmentShader = CompileShader(device, SDL.GPUShaderStage.Fragment);
-
-        return new SDL.GPUGraphicsPipelineCreateInfo()
-        {
-            PrimitiveType = SDL.GPUPrimitiveType.TriangleList,
-            VertexShader = vertexShader,
-            FragmentShader = fragmentShader,
-            TargetInfo = new SDL.GPUGraphicsPipelineTargetInfo()
-            {
-                NumColorTargets = 1,
-                ColorTargetDescriptions = SDL.StructureArrayToPointer([
-                    new SDL.GPUColorTargetDescription()
-                    {
-                        Format = SDL.GetGPUSwapchainTextureFormat(device.Handle, window.Handle),
-                        BlendState = new SDL.GPUColorTargetBlendState()
-                        {
-                            EnableBlend = true,
-                            ColorWriteMask = SDL.GPUColorComponentFlags.R | SDL.GPUColorComponentFlags.G | SDL.GPUColorComponentFlags.B | SDL.GPUColorComponentFlags.A,
-
-                            // (src * srcA) + (dst * (1 - srcA))
-                            SrcColorBlendFactor = SDL.GPUBlendFactor.SrcAlpha,
-                            DstColorBlendFactor = SDL.GPUBlendFactor.OneMinusSrcAlpha,
-                            ColorBlendOp = SDL.GPUBlendOp.Add,
-
-                            // outA = (srcA * 1) + (dstA * 0)
-                            SrcAlphaBlendFactor = SDL.GPUBlendFactor.One,
-                            DstAlphaBlendFactor = SDL.GPUBlendFactor.Zero,
-                            AlphaBlendOp = SDL.GPUBlendOp.Add,
-                        },
-                    },
-                ]),
-            },
-        };
-    }
-    static nint CompileShader(GpuDevice device, SDL.GPUShaderStage stage)
-    {
-        Console.WriteLine($"Compiling flatcolor shader: {stage}");
-
-        var args = new List<string>()
-        {
-            "resources/shaders/flatcolor.slang",
-            "-target", "spirv",
-            "-matrix-layout-column-major",
-        };
-
-        var shader = Slangc.NET.SlangCompiler.Compile([.. args]);
-        var info = new SDL.GPUShaderCreateInfo()
-        {
-            Code = StructureToPointer(in MemoryMarshal.GetReference(shader)),
-            CodeSize = (nuint) shader.Length,
-            Entrypoint = "main",
-            Format = SDL.GPUShaderFormat.SPIRV,
-            Stage = stage,
-            NumSamplers = 0,
-            NumStorageBuffers = 0,
-            NumStorageTextures = 0,
-            NumUniformBuffers = stage == SDL.GPUShaderStage.Vertex ? 0u : 1u,
-        };
-
-        return SDL.CreateGPUShader(device.Handle, info);
     }
 }
