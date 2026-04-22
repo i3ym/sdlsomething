@@ -7,15 +7,25 @@ public sealed class ViewModel
 
     readonly Main Game;
     readonly Renderer Renderer;
+    readonly SubViewport Viewport;
 
     public ViewModel(Main game, Renderer renderer)
     {
         Renderer = renderer;
         Game = game;
 
-        renderer.MainViewport.World.Groups.Add(new Standard3DRenderGroup(PrimitiveMeshes.Cube(renderer.Device), Towers = new(renderer.Device), renderer.Window));
-        renderer.MainViewport.World.Groups.Add(new Standard3DRenderGroup(PrimitiveMeshes.Sphere(renderer.Device), Enemies = new(renderer.Device), renderer.Window));
-        renderer.MainViewport.World.Groups.Add(new Standard3DRenderGroup(LinesMesh = new(renderer.Device), null, renderer.Window, new() { PrimitiveType = SDL.GPUPrimitiveType.LineList }));
+        Viewport = new SubViewport(renderer, new RenderWorld())
+        {
+            Width = 500,
+            Height = 500,
+            X = 100,
+            Y = 100,
+            ClearColor = new(1, 1, 0, .5f),
+        };
+        renderer.Viewports.Add(Viewport);
+        Viewport.World.Groups.Add(new Standard3DRenderGroup(PrimitiveMeshes.Cube(renderer.Device), Towers = new(renderer.Device), renderer.Window));
+        Viewport.World.Groups.Add(new Standard3DRenderGroup(PrimitiveMeshes.Sphere(renderer.Device), Enemies = new(renderer.Device), renderer.Window));
+        Viewport.World.Groups.Add(new Standard3DRenderGroup(LinesMesh = new(renderer.Device), null, renderer.Window, new() { PrimitiveType = SDL.GPUPrimitiveType.LineList }));
     }
 
     public bool Event(ref SDL.Event evt)
@@ -31,8 +41,9 @@ public sealed class ViewModel
         else ProcessGameTick((now - LastFrameTime) / (float) Stopwatch.Frequency);
         LastFrameTime = now;
 
-        Renderer.MainViewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(Tick / 200f) * 20, 10, MathF.Cos(Tick / 200f) * 20), new(0, 1, 0), Vector3.UnitY);
-        // Renderer.MainViewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(500 / 200f) * 5, 3, MathF.Cos(500 / 200f) * 5), new(0, 1, 0), Vector3.UnitY);
+        Viewport.Width = (uint) (500 + (int) (MathF.Sin(Tick / 20f) * 40));
+        Viewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(Tick / 200f) * 4, 3, MathF.Cos(Tick / 200f) * 4), new(0, 1, 0), Vector3.UnitY);
+        // Viewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(500 / 200f) * 5, 3, MathF.Cos(500 / 200f) * 5), new(0, 1, 0), Vector3.UnitY);
     }
 
     float TargetFixedDt = 1 / 60f;

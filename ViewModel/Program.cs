@@ -12,7 +12,7 @@ using var renderer = new Renderer(window, device);
 
 var main = new TowerDefence.Main();
 var game = new TowerDefence.TestScene(renderer);
-// var game = new TowerDefence.ViewModel(main, renderer);
+var game2 = new TowerDefence.ViewModel(main, renderer);
 
 var nt = DateTime.Now + TimeSpan.FromSeconds(1);
 var f = 0;
@@ -46,10 +46,12 @@ while (true)
 
     var start = Stopwatch.GetTimestamp();
     game.Update();
+    game2.Update();
     timeUpdate = Stopwatch.GetElapsedTime(start);
     start = Stopwatch.GetTimestamp();
 
     game.Render();
+    game2.Render();
     timeRender = Stopwatch.GetElapsedTime(start);
 
     renderer.Render(ref start);
