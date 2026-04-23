@@ -300,16 +300,17 @@ public sealed class Standard3DMaterial
         var vertexInputState = new SDL.GPUVertexInputState()
         {
             NumVertexBuffers = (uint) vertexDescriptions.Count,
-            VertexBufferDescriptions = SpanToPointer([.. vertexDescriptions]),
+            VertexBufferDescriptions = SpanToPointer(CollectionsMarshal.AsSpan(vertexDescriptions)),
             NumVertexAttributes = (uint) vertexAttributes.Count,
-            VertexAttributes = SpanToPointer([.. vertexAttributes]),
+            VertexAttributes = SpanToPointer(CollectionsMarshal.AsSpan(vertexAttributes)),
         };
 
         return SdlSomething.GraphicsPipeline.Create(device, window, new(CompileShaders(device, shaderOptions))
         {
             PrimitiveType = matOptions.PrimitiveType,
-            DepthEnabled = true,
+            Depth = true,
             BackfaceCulling = true,
+            Blending = false,
             Init = new() { VertexInputState = vertexInputState },
         });
     }

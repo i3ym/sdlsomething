@@ -4,20 +4,24 @@ namespace SdlSomething;
 
 public static class GraphicsPipeline
 {
-    public readonly struct Config()
+    public readonly struct Config
     {
-        public required nint VertexShader { get; init; }
-        public required nint FragmentShader { get; init; }
+        public nint VertexShader { get; }
+        public nint FragmentShader { get; }
 
         public SDL.GPUPrimitiveType PrimitiveType { get; init; } = SDL.GPUPrimitiveType.TriangleList;
         public SDL.GPUGraphicsPipelineCreateInfo Init { get; init; }
 
-        public bool EnableBlending { get; init; } = false;
-        public bool DepthEnabled { get; init; } = true;
-        public bool BackfaceCulling { get; init; } = true;
+        public required bool Blending { get; init; }
+        public required bool Depth { get; init; }
+        public required bool BackfaceCulling { get; init; }
 
-        [SetsRequiredMembers]
-        public Config((nint vert, nint frag) shaders) : this() => (VertexShader, FragmentShader) = shaders;
+        public Config((nint vert, nint frag) shaders) : this(shaders.vert, shaders.frag) { }
+        public Config(nint vert, nint frag)
+        {
+            VertexShader = vert;
+            FragmentShader = frag;
+        }
     }
 
     public static nint Create(GpuDevice device, Window window, in Config config)
@@ -35,49 +39,43 @@ public static class GraphicsPipeline
         info.VertexShader = config.VertexShader;
         info.FragmentShader = config.FragmentShader;
 
-        if (config.DepthEnabled)
+        if (config.Depth)
         {
             info.TargetInfo.HasDepthStencilTarget = true;
             info.TargetInfo.DepthStencilFormat = GetStencilFormat(device);
 
-            info.DepthStencilState = new SDL.GPUDepthStencilState()
-            {
-                EnableDepthTest = true,
-                EnableDepthWrite = true,
-                CompareOp = SDL.GPUCompareOp.Less,
-                WriteMask = 0xFF,
-            };
+            ref var ds = ref info.DepthStencilState;
+            ds.EnableDepthTest = true;
+            ds.EnableDepthWrite = true;
+            ds.CompareOp = SDL.GPUCompareOp.Less;
+            ds.WriteMask = 0xFF;
         }
-        if (config.EnableBlending)
+        if (config.Blending)
         {
-            colorTargets[0].BlendState = new SDL.GPUColorTargetBlendState()
-            {
-                EnableBlend = true,
-                ColorWriteMask = SDL.GPUColorComponentFlags.R
-                    | SDL.GPUColorComponentFlags.G
-                    | SDL.GPUColorComponentFlags.B
-                    | SDL.GPUColorComponentFlags.A,
+            ref var bs = ref colorTargets[0].BlendState;
 
-                // (src * srcA) + (dst * (1 - srcA))
-                SrcColorBlendFactor = SDL.GPUBlendFactor.SrcAlpha,
-                DstColorBlendFactor = SDL.GPUBlendFactor.OneMinusSrcAlpha,
-                ColorBlendOp = SDL.GPUBlendOp.Add,
+            bs.EnableBlend = true;
+            bs.ColorWriteMask = SDL.GPUColorComponentFlags.R
+                | SDL.GPUColorComponentFlags.G
+                | SDL.GPUColorComponentFlags.B
+                | SDL.GPUColorComponentFlags.A;
 
-                // outA = (srcA * 1) + (dstA * 0)
-                SrcAlphaBlendFactor = SDL.GPUBlendFactor.One,
-                DstAlphaBlendFactor = SDL.GPUBlendFactor.Zero,
-                AlphaBlendOp = SDL.GPUBlendOp.Add,
-            };
+            // (src * srcA) + (dst * (1 - srcA))
+            bs.SrcColorBlendFactor = SDL.GPUBlendFactor.SrcAlpha;
+            bs.DstColorBlendFactor = SDL.GPUBlendFactor.OneMinusSrcAlpha;
+            bs.ColorBlendOp = SDL.GPUBlendOp.Add;
+
+            // outA = (srcA * 1) + (dstA * 0)
+            bs.SrcAlphaBlendFactor = SDL.GPUBlendFactor.One;
+            bs.DstAlphaBlendFactor = SDL.GPUBlendFactor.Zero;
+            bs.AlphaBlendOp = SDL.GPUBlendOp.Add;
         }
         if (config.BackfaceCulling)
             info.RasterizerState.CullMode = SDL.GPUCullMode.Back;
 
 
-        info.TargetInfo = new SDL.GPUGraphicsPipelineTargetInfo()
-        {
-            NumColorTargets = (uint) colorTargets.Length,
-            ColorTargetDescriptions = SpanToPointer(colorTargets),
-        };
+        info.TargetInfo.NumColorTargets = (uint) colorTargets.Length;
+        info.TargetInfo.ColorTargetDescriptions = SpanToPointer(colorTargets);
 
 
         var pipeline = SDL.CreateGPUGraphicsPipeline(device.Handle, info);

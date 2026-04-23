@@ -80,8 +80,8 @@ public sealed class SubViewport : Viewport
     {
         ClearPipeline = GraphicsPipeline.Create(renderer.Device, renderer.Window, new(GraphicsPipeline.CompileShaders("flatcolor", renderer.Device))
         {
-            EnableBlending = true,
-            DepthEnabled = false,
+            Blending = true,
+            Depth = false,
             BackfaceCulling = false,
         });
     }
