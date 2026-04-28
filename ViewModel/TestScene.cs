@@ -1,19 +1,17 @@
 namespace TowerDefence;
 
-public sealed class TestScene
+public sealed class TestScene : RenderWorld
 {
-    readonly Renderer Renderer;
-
-    public TestScene(Renderer renderer)
+    public TestScene(Viewport viewport)
     {
-        Renderer = renderer;
+        Add(new TopDownCameraController());
 
         // floor
         const int floorSize = 30;
-        renderer.MainViewport.World.Groups.Add(new Standard3DRenderGroup(createSubdividedPlane(floorSize, 4, new(0, -.5f, 0)), null, renderer.Window));
+        Add(new Standard3DRenderGroup(createSubdividedPlane(floorSize, 4, new(0, -.5f, 0)), null));
 
-        var cubes = new Standard3DInstanceDataTC(renderer.Device);
-        renderer.MainViewport.World.Groups.Add(new Standard3DRenderGroup(PrimitiveMeshes.Cube(renderer.Device), cubes, renderer.Window));
+        var cubes = new Standard3DInstanceDataTC(viewport.Device);
+        Add(new Standard3DRenderGroup(PrimitiveMeshes.Cube(viewport.Device), cubes));
 
         {
             var random = new Random(123);
@@ -64,7 +62,7 @@ public sealed class TestScene
                 inds[5] = (short) (3 + i * 4);
             }
 
-            return new Standard3DMeshNCI(renderer.Device)
+            return new Standard3DMeshNCI(viewport.Device)
             {
                 Vertices = { Arr = positions },
                 Normals = { Arr = normals },
@@ -89,35 +87,5 @@ public sealed class TestScene
 
             normals[0] = Vector3.Normalize(Vector3.Cross(edge1, edge2));
         }
-    }
-
-    public void Render() { }
-
-    public bool Event(ref SDL.Event evt)
-    {
-        const byte leftMouseButton = 1;
-        var type = (SDL.EventType) evt.Type;
-
-        if (type == SDL.EventType.MouseButtonDown && evt.Button.Button == leftMouseButton)
-            Moving = true;
-        else if (type == SDL.EventType.MouseButtonUp && evt.Button.Button == leftMouseButton)
-            Moving = false;
-        else if (type == SDL.EventType.MouseWheel)
-            Y += evt.Wheel.IntegerY;
-        else if (type == SDL.EventType.MouseMotion && Moving)
-        {
-            X += evt.Motion.XRel / 50f;
-            Z += evt.Motion.YRel / 50f;
-        }
-
-        return false;
-    }
-
-    bool Moving;
-    float X, Y = 1, Z;
-
-    public void Update()
-    {
-        Renderer.MainViewport.CameraMatrix = Matrix4x4.CreateLookAt(new(X, Y + 3, Z), new(X, Y, Z + 4), Vector3.UnitY);
     }
 }

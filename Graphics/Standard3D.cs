@@ -1,30 +1,45 @@
-using Slangc.NET;
-
 namespace SdlSomething;
 
-public interface IStandard3DRenderGroup : IRenderGroup;
-public sealed class Standard3DRenderGroup : IStandard3DRenderGroup
+public sealed class Standard3DRenderGroup : RenderGroup
 {
-    public int InstancesCount => InstanceData?.InstanceCount ?? 1;
+    public override int InstancesCount => InstanceData?.InstanceCount ?? 1;
     readonly IStandard3DMesh Mesh;
-    readonly Standard3DMaterial Material;
+    Standard3DMaterial? Material;
     readonly IStandard3DInstanceData? InstanceData;
+    readonly Standard3DMaterialOptions? MaterialOptions;
 
-    public Standard3DRenderGroup(IStandard3DMesh mesh, IStandard3DInstanceData? instanceData, Window window, Standard3DMaterialOptions? matOptions = null)
+    public Standard3DRenderGroup(IStandard3DMesh mesh, IStandard3DInstanceData? instanceData, Standard3DMaterialOptions? matOptions = null)
     {
         Mesh = mesh;
         InstanceData = instanceData;
-        Material = new Standard3DMaterial(mesh.Device, window, mesh.ShaderOptions | (instanceData?.ShaderOptions ?? 0), matOptions);
+        MaterialOptions = matOptions;
     }
 
-    public void PrepareFrame(nint commandBuffer)
+    protected override void PreInvalidateParent()
+    {
+        Material?.Dispose();
+        Material = null;
+
+        base.PreInvalidateParent();
+    }
+    protected override void InvalidateParent()
+    {
+        var colorFormat = this.FindParentOfType<Window>()?.Renderer.ColorTextureFormat;
+        if (colorFormat is { } f)
+            Material = new Standard3DMaterial(Mesh.Device, f, Mesh.ShaderOptions | (InstanceData?.ShaderOptions ?? 0), MaterialOptions);
+
+        base.InvalidateParent();
+    }
+
+    public override void PrepareFrame(nint commandBuffer)
     {
         Mesh.PrepareFrame(commandBuffer);
         InstanceData?.PrepareFrame(commandBuffer);
     }
-    public void RenderFrame(nint renderPass)
+    public override void RenderFrame(nint renderPass)
     {
         if (InstancesCount == 0) return;
+        if (Material is null) return;
 
         Material.BeginFrame(renderPass);
         Mesh.RenderFrame(renderPass);
@@ -35,9 +50,9 @@ public sealed class Standard3DRenderGroup : IStandard3DRenderGroup
         else SDL.DrawGPUIndexedPrimitives(renderPass, (uint) indicesCount, (uint) InstancesCount, 0, 0, 0);
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
-        Material.Dispose();
+        Material?.Dispose();
         InstanceData?.Dispose();
     }
 }
@@ -239,16 +254,16 @@ public sealed class Standard3DMaterial
     readonly GpuDevice Device;
     readonly nint GraphicsPipeline;
 
-    public Standard3DMaterial(GpuDevice device, Window window, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions? matOptions = null)
+    public Standard3DMaterial(GpuDevice device, SDL.GPUTextureFormat colorTextureFormat, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions? matOptions = null)
     {
         Device = device;
-        GraphicsPipeline = CreatePipeline(device, window, shaderOptions, matOptions ?? new());
+        GraphicsPipeline = CreatePipeline(device, colorTextureFormat, shaderOptions, matOptions ?? new());
     }
 
     public void BeginFrame(nint renderPass) => SDL.BindGPUGraphicsPipeline(renderPass, GraphicsPipeline);
     public void Dispose() => SDL.ReleaseGPUGraphicsPipeline(Device.Handle, GraphicsPipeline);
 
-    static nint CreatePipeline(GpuDevice device, Window window, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions matOptions)
+    static nint CreatePipeline(GpuDevice device, SDL.GPUTextureFormat colorTextureFormat, Standard3DShaderOptions shaderOptions, Standard3DMaterialOptions matOptions)
     {
         var vertexDescriptions = new List<SDL.GPUVertexBufferDescription>();
         var vertexAttributes = new List<SDL.GPUVertexAttribute>();
@@ -305,7 +320,7 @@ public sealed class Standard3DMaterial
             VertexAttributes = SpanToPointer(CollectionsMarshal.AsSpan(vertexAttributes)),
         };
 
-        return SdlSomething.GraphicsPipeline.Create(device, window, new(CompileShaders(device, shaderOptions))
+        return SdlSomething.GraphicsPipeline.Create(device, colorTextureFormat, new(CompileShaders(device, shaderOptions))
         {
             PrimitiveType = matOptions.PrimitiveType,
             Depth = true,

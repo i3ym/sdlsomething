@@ -1,43 +1,54 @@
 namespace SdlSomething;
 
-public abstract class Viewport
+public abstract class Viewport : GuiObject
 {
-    public Renderer Renderer { get; }
-    public RenderWorld World { get; set; }
+    public GpuDevice Device => Renderer.Device;
+    public Window Window => Renderer.Window;
+
+    /// <summary> Add value to this <see cref="Node"/> and set it as <see cref="World"/> </summary>
+    public RenderWorld WorldChild { set => World = Add(value); }
+
+    protected Renderer Renderer { get; }
+    public RenderWorld? World { get; set; }
     public Matrix4x4 CameraMatrix { get; set; } = Matrix4x4.Identity;
     public Vector4 ClearColor { get; set; } = new(0, 0, 0, 1);
 
-    protected Viewport(Renderer renderer, RenderWorld world)
+    protected Viewport(Renderer renderer) => Renderer = renderer;
+
+    protected override void PreInvalidateParent()
     {
-        Renderer = renderer;
-        World = world;
+        this.FindParentOfType<Window>()?.Renderer.RemoveViewport(this);
+        base.PreInvalidateParent();
+    }
+    protected override void InvalidateParent()
+    {
+        this.FindParentOfType<Window>()?.Renderer.AddViewport(this);
+        base.InvalidateParent();
     }
 
     protected abstract nint BeginRenderPass(nint commandBuffer, nint colorTexture);
 
-    protected abstract float RealWidth { get; }
-    protected abstract float RealHeight { get; }
-
     public void Render(nint commandBuffer, nint colorTexture)
     {
-        var cameraMatrix = CameraMatrix * Matrix4x4.CreatePerspectiveFieldOfView(90 * (MathF.PI / 180), RealWidth / RealHeight, .01f, 500f);
+        var cameraMatrix = CameraMatrix * Matrix4x4.CreatePerspectiveFieldOfView(90 * (MathF.PI / 180), RealWidth / (float) RealHeight, .01f, 500f);
         SDL.PushGPUVertexUniformData(commandBuffer, 0, StructureToPointer(cameraMatrix), sizeof(float) * 4 * 4);
 
-        World.PrepareFrame(commandBuffer);
+        World?.PrepareFrame(commandBuffer);
 
         var renderPass = BeginRenderPass(commandBuffer, colorTexture);
-        World.Render(commandBuffer, renderPass);
+        World?.Render(commandBuffer, renderPass);
 
         SDL.EndGPURenderPass(renderPass);
     }
 }
 
-public sealed class MainViewport : Viewport
+sealed class MainViewport : Viewport
 {
-    protected override float RealWidth => Renderer.WindowWidth;
-    protected override float RealHeight => Renderer.WindowHeight;
-
-    public MainViewport(Renderer renderer, RenderWorld world) : base(renderer, world) { }
+    public MainViewport(Renderer renderer) : base(renderer)
+    {
+        RelativeWidth = 1;
+        RelativeHeight = 1;
+    }
 
     protected override nint BeginRenderPass(nint commandBuffer, nint colorTexture)
     {
@@ -65,20 +76,11 @@ public sealed class MainViewport : Viewport
 }
 public sealed class SubViewport : Viewport
 {
-    protected override float RealWidth => Width;
-    protected override float RealHeight => Height;
-
-    SDL.GPUViewport Info = new() { W = 1, H = 1, MinDepth = 0, MaxDepth = 1 };
-    public uint X { get => (uint) Info.X; set => Info.X = value; }
-    public uint Y { get => (uint) Info.Y; set => Info.Y = value; }
-    public uint Width { get => (uint) Info.W; set => Info.W = value; }
-    public uint Height { get => (uint) Info.H; set => Info.H = value; }
-
     readonly nint ClearPipeline;
 
-    public SubViewport(Renderer renderer, RenderWorld world) : base(renderer, world)
+    public SubViewport(Renderer renderer) : base(renderer)
     {
-        ClearPipeline = GraphicsPipeline.Create(renderer.Device, renderer.Window, new(GraphicsPipeline.CompileShaders("flatcolor", renderer.Device))
+        ClearPipeline = GraphicsPipeline.Create(renderer.Device, renderer.ColorTextureFormat, new(GraphicsPipeline.CompileShaders("flatcolor", renderer.Device))
         {
             Blending = true,
             Depth = false,
@@ -107,7 +109,16 @@ public sealed class SubViewport : Viewport
         };
 
         var renderPass = SDL.BeginGPURenderPass(commandBuffer, StructureToPointer(colorTarget), 1, StructureToPointer(stencil));
-        SDL.SetGPUViewport(renderPass, Info);
+        var viewport = new SDL.GPUViewport()
+        {
+            X = RealX,
+            Y = RealY,
+            W = RealWidth,
+            H = RealHeight,
+            MinDepth = 0,
+            MaxDepth = 1,
+        };
+        SDL.SetGPUViewport(renderPass, viewport);
 
         SDL.BindGPUGraphicsPipeline(renderPass, ClearPipeline);
         SDL.PushGPUFragmentUniformData(commandBuffer, 0, StructureToPointer(ClearColor), USizeOf<Vector4>());

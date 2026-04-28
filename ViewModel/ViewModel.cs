@@ -1,36 +1,21 @@
 namespace TowerDefence;
 
-public sealed class ViewModel
+public sealed class ViewModel : RenderWorld, IFrameUpdate, IFrameRender
 {
     readonly Standard3DInstanceDataTC Towers, Enemies;
     readonly Standard3DMeshC LinesMesh;
 
     readonly Main Game;
-    readonly Renderer Renderer;
-    readonly SubViewport Viewport;
 
-    public ViewModel(Main game, Renderer renderer)
+    public ViewModel(Main game, Viewport viewport)
     {
-        Renderer = renderer;
         Game = game;
 
-        Viewport = new SubViewport(renderer, new RenderWorld())
-        {
-            Width = 500,
-            Height = 500,
-            X = 100,
-            Y = 100,
-            ClearColor = new(1, 1, 0, .5f),
-        };
-        renderer.Viewports.Add(Viewport);
-        Viewport.World.Groups.Add(new Standard3DRenderGroup(PrimitiveMeshes.Cube(renderer.Device), Towers = new(renderer.Device), renderer.Window));
-        Viewport.World.Groups.Add(new Standard3DRenderGroup(PrimitiveMeshes.Sphere(renderer.Device), Enemies = new(renderer.Device), renderer.Window));
-        Viewport.World.Groups.Add(new Standard3DRenderGroup(LinesMesh = new(renderer.Device), null, renderer.Window, new() { PrimitiveType = SDL.GPUPrimitiveType.LineList }));
-    }
+        Add(new TopDownCameraController());
 
-    public bool Event(ref SDL.Event evt)
-    {
-        return false;
+        Add(new Standard3DRenderGroup(PrimitiveMeshes.Cube(viewport.Device), Towers = new(viewport.Device)));
+        Add(new Standard3DRenderGroup(PrimitiveMeshes.Sphere(viewport.Device), Enemies = new(viewport.Device)));
+        Add(new Standard3DRenderGroup(LinesMesh = new(viewport.Device), null, new() { PrimitiveType = SDL.GPUPrimitiveType.LineList }));
     }
 
     long LastFrameTime;
@@ -41,8 +26,7 @@ public sealed class ViewModel
         else ProcessGameTick((now - LastFrameTime) / (float) Stopwatch.Frequency);
         LastFrameTime = now;
 
-        Viewport.Width = (uint) (500 + (int) (MathF.Sin(Tick / 20f) * 40));
-        Viewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(Tick / 200f) * 4, 3, MathF.Cos(Tick / 200f) * 4), new(0, 1, 0), Vector3.UnitY);
+        // Viewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(Tick / 200f) * 4, 3, MathF.Cos(Tick / 200f) * 4), new(0, 1, 0), Vector3.UnitY);
         // Viewport.CameraMatrix = Matrix4x4.CreateLookAt(new(MathF.Sin(500 / 200f) * 5, 3, MathF.Cos(500 / 200f) * 5), new(0, 1, 0), Vector3.UnitY);
     }
 
@@ -73,7 +57,7 @@ public sealed class ViewModel
         // systemExecutor.World.Set(new FixedInterpolationAlpha(alpha));
     }
 
-    public void Render()
+    public void UpdateRender()
     {
         RenderFrom<TowerPosition>(Game.World, Towers);
         RenderFrom<EnemyPosition>(Game.World, Enemies);

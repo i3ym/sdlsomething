@@ -24,13 +24,13 @@ public static class GraphicsPipeline
         }
     }
 
-    public static nint Create(GpuDevice device, Window window, in Config config)
+    public static nint Create(GpuDevice device, SDL.GPUTextureFormat colorTextureFormat, in Config config)
     {
         var colorTargets = new[]
         {
             new SDL.GPUColorTargetDescription()
             {
-                Format = SDL.GetGPUSwapchainTextureFormat(device.Handle, window.Handle),
+                Format = colorTextureFormat,
             },
         };
 

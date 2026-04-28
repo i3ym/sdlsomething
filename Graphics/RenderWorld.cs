@@ -1,23 +1,21 @@
 namespace SdlSomething;
 
-public interface IRenderGroup : IDisposable
+public class RenderWorld : Node
 {
-    int InstancesCount { get; }
+    public int InstancesCount => Groups.Sum(c => c.InstancesCount);
 
-    void PrepareFrame(nint commandBuffer);
-    void RenderFrame(nint renderPass);
-}
-public sealed class RenderWorld
-{
     public Vector3 SunDirection { get; set; } = new Vector3(-.5f, -1, -.67f);
-    public List<IRenderGroup> Groups { get; } = [];
+    readonly List<RenderGroup> Groups = [];
 
-    public void PrepareFrame(nint commandBuffer)
+    internal void AddGroup(RenderGroup group) => Groups.Add(group);
+    internal void RemoveGroup(RenderGroup group) => Groups.Remove(group);
+
+    internal void PrepareFrame(nint commandBuffer)
     {
         foreach (var group in Groups)
             group.PrepareFrame(commandBuffer);
     }
-    public void Render(nint commandBuffer, nint renderPass)
+    internal void Render(nint commandBuffer, nint renderPass)
     {
         SDL.PushGPUFragmentUniformData(commandBuffer, 0, StructureToPointer(SunDirection), sizeof(float) * 3);
 

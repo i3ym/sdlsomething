@@ -5,57 +5,63 @@ namespace SdlSomething;
 
 public sealed class Renderer : IDisposable
 {
+    public SDL.GPUTextureFormat ColorTextureFormat { get; }
     public nint MainDepthStencilTexture { get; private set; }
 
-    public ulong Frame { get; private set; }
-    public uint WindowWidth { get; private set; }
-    public uint WindowHeight { get; private set; }
+    uint Width, Height;
 
     public Window Window { get; }
     public GpuDevice Device { get; }
-    public MainViewport MainViewport { get; }
-    public List<SubViewport> Viewports { get; } = [];
+    readonly List<Viewport> Viewports = [];
 
     public Renderer(Window window, GpuDevice device)
     {
         Window = window;
         Device = device;
+        ColorTextureFormat = SDL.GetGPUSwapchainTextureFormat(device.Handle, window.Handle);
 
-        MainViewport = new MainViewport(this, new());
-
-        ImGuiController.Initialize(device, window);
+        ImGuiController.Initialize(device, window, ColorTextureFormat);
     }
 
-    void Resize(uint w, uint h)
+    public int GetInstancesCount() => Viewports.Sum(c => c.World?.InstancesCount ?? 0);
+    internal void AddViewport(Viewport viewport) => Viewports.Add(viewport);
+    internal void RemoveViewport(Viewport viewport) => Viewports.Remove(viewport);
+
+    internal void Resize(uint w, uint h)
     {
-        WindowWidth = w;
-        WindowHeight = h;
+        Width = w;
+        Height = h;
         ReleaseDepthStencilTexture();
     }
 
     public bool Event(ref SDL.Event evt)
     {
-        if (ImGuiController.ProcessEvent(ref evt))
-            return true;
-
         var type = (SDL.EventType) evt.Type;
 
-        if (type == SDL.EventType.WindowResized)
+        if (type == SDL.EventType.WindowPixelSizeChanged)
             Resize((uint) evt.Window.Data1, (uint) evt.Window.Data2);
+
+        if (ImGuiController.ProcessEvent(ref evt))
+            return true;
 
         return false;
     }
 
     public void Render()
     {
-        var unused = 0L;
-        Render(ref unused);
+        if (!BeginRender(out var commandBuffer, out var swapchainTexture))
+            return;
+
+        foreach (var viewport in Viewports)
+            viewport.Render(commandBuffer, swapchainTexture);
+
+        EndRender(commandBuffer, swapchainTexture);
     }
-    public void Render(ref long startTime)
+
+    bool BeginRender(out nint commandBuffer, out nint swapchainTexture)
     {
-        Frame++;
-        var commandBuffer = SDL.AcquireGPUCommandBuffer(Device.Handle);
-        ImGuiController.BeginFrame();
+        commandBuffer = SDL.AcquireGPUCommandBuffer(Device.Handle);
+        ImGuiController.BeginFrame(); // TODO: < move to the start of the *update* not render
 
         {
             ImGui.Begin("hi");
@@ -65,34 +71,32 @@ public sealed class Renderer : IDisposable
             ImGui.End();
         }
 
-        SDL.WaitAndAcquireGPUSwapchainTexture(commandBuffer, Window.Handle, out var swapchainTexture, out var w, out var h);
-        startTime = Stopwatch.GetTimestamp();
-        WindowWidth = w;
-        WindowHeight = h;
-
-        if (MainDepthStencilTexture == nint.Zero)
-            MainDepthStencilTexture = CreateDepthTexture(WindowWidth, WindowHeight);
-
-        if (swapchainTexture == nint.Zero)
+        SDL.WaitAndAcquireGPUSwapchainTexture(commandBuffer, Window.Handle, out swapchainTexture, out Width, out Height);
+        if (swapchainTexture == 0)
         {
-            SDL.SubmitGPUCommandBuffer(commandBuffer);
-            return;
+            EndRender(commandBuffer, swapchainTexture);
+            return false;
         }
 
-        MainViewport.Render(commandBuffer, swapchainTexture);
-        foreach (var viewport in Viewports)
-            viewport.Render(commandBuffer, swapchainTexture);
+        if (MainDepthStencilTexture == 0)
+            MainDepthStencilTexture = CreateDepthTexture(Width, Height);
 
-        ImGuiController.Render(commandBuffer, swapchainTexture);
+        return true;
+    }
+    static void EndRender(nint commandBuffer, nint swapchainTexture)
+    {
+        if (swapchainTexture != 0)
+            ImGuiController.Render(commandBuffer, swapchainTexture);
+
         SDL.SubmitGPUCommandBuffer(commandBuffer);
     }
 
     void ReleaseDepthStencilTexture()
     {
-        if (MainDepthStencilTexture == nint.Zero) return;
+        if (MainDepthStencilTexture == 0) return;
 
         SDL.ReleaseGPUTexture(Device.Handle, MainDepthStencilTexture);
-        MainDepthStencilTexture = nint.Zero;
+        MainDepthStencilTexture = 0;
     }
     nint CreateDepthTexture(uint w, uint h)
     {
@@ -117,7 +121,7 @@ public sealed class Renderer : IDisposable
 
     static unsafe class ImGuiController
     {
-        public static void Initialize(GpuDevice device, Window window)
+        public static void Initialize(GpuDevice device, Window window, SDL.GPUTextureFormat colorTextureFormat)
         {
             var ctx = ImGui.CreateContext();
 
@@ -136,7 +140,7 @@ public sealed class Renderer : IDisposable
             var initInfo = new ImGuiImplSDLGPU3InitInfo()
             {
                 Device = (SDLGPUDevice*) device.Handle,
-                ColorTargetFormat = (int) SDL.GetGPUSwapchainTextureFormat(device.Handle, window.Handle),
+                ColorTargetFormat = (int) colorTextureFormat,
             };
             ImGuiImplSDL3.SDLGPU3Init(&initInfo);
         }
