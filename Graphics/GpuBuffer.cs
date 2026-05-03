@@ -41,54 +41,58 @@ public sealed class ResizableGpuBuffer<T> : IDisposable
     where T : unmanaged
 {
     public GpuDevice Device { get; }
-    public int Length => Data.Length;
 
     public T[] Arr
     {
-        private get => (MemoryMarshal.TryGetArray<T>(WritableData, out var segment) ? segment.Array : null)
-            ?? throw new InvalidOperationException("Could not get gpu buffer array");
-        set => WritableData = value;
+        set
+        {
+            Data = value;
+            Length = Data.Length;
+            NeedsCopy = true;
+        }
     }
 
-    public ReadOnlyMemory<T> ReadonlyData => Data;
-    public ref Memory<T> WritableData { get { NeedsCopy = true; return ref Data; } }
-
-    Memory<T> Data = Array.Empty<T>();
+    Span<T> DataSpan => Data.AsSpan(0, Length);
+    public int Length { get; private set; }
+    T[] Data = [];
     bool NeedsCopy = true;
 
     readonly SDL.GPUBufferUsageFlags Flags;
     GpuBuffer<T> Buffer;
     GpuTransferBuffer<T> TransferBuffer;
 
-    public ResizableGpuBuffer(GpuDevice device, SDL.GPUBufferUsageFlags flags, T[] data) : this(device, flags, data.AsMemory()) { }
-    public ResizableGpuBuffer(GpuDevice device, SDL.GPUBufferUsageFlags flags, Memory<T> data) : this(device, flags) => Data = data;
+    public ResizableGpuBuffer(GpuDevice device, SDL.GPUBufferUsageFlags flags, T[] data) : this(device, flags) => Data = data;
     public ResizableGpuBuffer(GpuDevice device, SDL.GPUBufferUsageFlags flags)
     {
         Device = device;
         Flags = flags;
     }
 
+    /// <summary>
+    /// Sets the new buffer length to <paramref name="count"/> and returns a <see cref="Span{T}"/> of that region.
+    /// </summary>
     public Span<T> GetWritableSpan(int count)
     {
         EnsureBufferAtLeast(count);
-        WritableData = Arr.AsMemory(0, count);
 
-        return WritableData.Span;
+        NeedsCopy = true;
+        Length = count;
+        return DataSpan;
     }
     public void EnsureBufferAtLeast(int count)
     {
         if (Data.Length >= count) return;
 
-        var dataLength = Data.Length;
-        var arr = Arr;
-        Array.Resize(ref arr, BytesExtensions.EnsureArrayLength(64, Data.Length, count));
-        WritableData = arr.AsMemory(0, dataLength);
+        var prev = Data;
+        Arr = new T[BytesExtensions.EnsureArrayLength(64, Data.Length, count)];
+        prev.CopyTo(Data);
     }
 
     public void PrepareFrame(nint commandBuffer)
     {
-        if (Data.Length == 0)
+        if (Length == 0)
         {
+            // buffer has to exist
             if (Buffer.Length == 0)
             {
                 // 4 bytes is the minimum size, wrote 32 just in case
@@ -104,18 +108,17 @@ public sealed class ResizableGpuBuffer<T> : IDisposable
         {
             DisposeBuffers();
 
-            var newLen = BytesExtensions.EnsureArrayLength(64, Buffer.Length, Data.Length);
-            Buffer = new GpuBuffer<T>(Device, newLen, Flags);
+            Buffer = new GpuBuffer<T>(Device, Data.Length, Flags);
             TransferBuffer = new GpuTransferBuffer<T>(Buffer);
 
-            TransferBuffer.WriteAndCopy(commandBuffer, Data.Span);
+            TransferBuffer.WriteAndCopy(commandBuffer, DataSpan);
             NeedsCopy = false;
             return;
         }
 
         if (NeedsCopy)
         {
-            TransferBuffer.WriteAndCopy(commandBuffer, Data.Span);
+            TransferBuffer.WriteAndCopy(commandBuffer, DataSpan);
             NeedsCopy = false;
         }
     }

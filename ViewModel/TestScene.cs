@@ -17,7 +17,7 @@ public sealed class TestScene : RenderWorld
             var random = new Random(123);
             var cubeCount = 20;
 
-            cubes.Transform.WritableData = Enumerable.Range(0, cubeCount)
+            cubes.Transform.Arr = Enumerable.Range(0, cubeCount)
                 .Select(_ => Matrix4x4.CreateTranslation(
                     random.NextSingle() * floorSize,
                     random.NextSingle() * 2,
@@ -25,7 +25,7 @@ public sealed class TestScene : RenderWorld
                 ))
                 .ToArray();
 
-            cubes.Color.WritableData = Enumerable.Range(0, cubeCount)
+            cubes.Color.Arr = Enumerable.Range(0, cubeCount)
                 .Select(_ => new Vector4(
                     MathF.Max(random.NextSingle(), .2f),
                     MathF.Max(random.NextSingle(), .2f),
