@@ -2,24 +2,26 @@ namespace SdlSomething;
 
 public static class PrimitiveMeshes
 {
-    public static Standard3DMeshNCI Cube(GpuDevice device)
+    public static Standard3DMeshNCI Cube(GpuDevice device) => Cube(device, 1, 1, 1);
+    public static Standard3DMeshNCI Cube(GpuDevice device, float w, float h, float d)
     {
-        const float p = .5f;
-        const float n = -p;
+        w /= 2f;
+        h /= 2f;
+        d /= 2f;
 
         return new Standard3DMeshNCI(device)
         {
             Vertices = {
                 Arr = [
-                    new(n, n, n), // 0
-                    new(n, n, p), // 1
-                    new(p, n, p), // 2
-                    new(p, n, n), // 3
+                    new(-w, -h, -d), // 0
+                    new(-w, -h, +d), // 1
+                    new(+w, -h, +d), // 2
+                    new(+w, -h, -d), // 3
 
-                    new(n, p, n), // 4
-                    new(n, p, p), // 5
-                    new(p, p, p), // 6
-                    new(p, p, n), // 7
+                    new(-w, +h, -d), // 4
+                    new(-w, +h, +d), // 5
+                    new(+w, +h, +d), // 6
+                    new(+w, +h, -d), // 7
                 ],
             },
             Normals = {
@@ -53,6 +55,7 @@ public static class PrimitiveMeshes
             },
         };
     }
+
     public static Standard3DMeshNCI Sphere(GpuDevice device, float radius = .5f, int rings = 16, int sectors = 32)
     {
         var vertices = new List<Vector3>();

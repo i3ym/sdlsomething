@@ -11,17 +11,7 @@ using var window = new Window(device);
 SDL.SetGPUAllowedFramesInFlight(device.Handle, 1);
 
 var main = new TowerDefence.Main();
-
 window.MainViewport.WorldChild = new TowerDefence.ViewModel(main, window.MainViewport);
-window.Add(new SubViewport(window.Renderer)
-{
-    RelativeWidth = .3f,
-    RelativeHeight = .3f,
-    RelativeX = .1f,
-    RelativeY = .1f,
-    WorldChild = new TowerDefence.TestScene(window.MainViewport),
-    ClearColor = new(.5f, .5f, 0, .5f),
-});
 
 
 var nt = DateTime.Now + TimeSpan.FromSeconds(1);

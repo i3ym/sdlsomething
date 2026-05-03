@@ -94,7 +94,7 @@ public static class NodeArchestrator
     }
 }
 
-public static class Node2Extensions
+public static class NodeExtensions
 {
     public static T WithChild<T>(this T node, Node child)
         where T : Node

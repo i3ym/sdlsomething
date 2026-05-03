@@ -1,8 +1,10 @@
+using TowerDefence.Entities;
+using TowerDefence.Towers;
+
 namespace TowerDefence;
 
 public sealed class ViewModel : RenderWorld, IFrameUpdate, IFrameRender
 {
-    readonly Standard3DInstanceDataTC Towers, Enemies;
     readonly Standard3DMeshC LinesMesh;
 
     readonly Main Game;
@@ -13,9 +15,10 @@ public sealed class ViewModel : RenderWorld, IFrameUpdate, IFrameRender
 
         Add(new TopDownCameraController());
 
-        Add(new Standard3DRenderGroup(PrimitiveMeshes.Cube(viewport.Device), Towers = new(viewport.Device)));
-        Add(new Standard3DRenderGroup(PrimitiveMeshes.Sphere(viewport.Device), Enemies = new(viewport.Device)));
         Add(new Standard3DRenderGroup(LinesMesh = new(viewport.Device), null, new() { PrimitiveType = SDL.GPUPrimitiveType.LineList }));
+
+        Add(new TowerNormal1(viewport.Device, game));
+        Add(new EntityNormal1(viewport.Device, game));
     }
 
     long LastFrameTime;
@@ -59,9 +62,6 @@ public sealed class ViewModel : RenderWorld, IFrameUpdate, IFrameRender
 
     public void UpdateRender()
     {
-        RenderFrom<TowerPosition>(Game.World, Towers);
-        RenderFrom<EnemyPosition>(Game.World, Enemies);
-
         RenderField(Game.World.Singleton<Field>().Paths, LinesMesh);
     }
 
